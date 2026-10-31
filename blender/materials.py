@@ -172,3 +172,33 @@ def keycap(name, col, legend_path=None, legend_col='#26272a', legend_w=0.020, le
         nt.links.new(img.outputs['Alpha'], mix.inputs['Factor'])
         nt.links.new(mix.outputs['Result'], b.inputs['Base Color'])
     return m
+
+
+def add_projected_legend(m, image_path, bounds, col='#bdbdbd'):
+    """Print a legend texture onto material m, projected from above in object XY.
+    bounds = (x0, y0, x1, y1) in object-local metres covered by the image."""
+    nt = m.node_tree
+    b = next(n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED')
+    x0, y0, x1, y1 = bounds
+    tc = nt.nodes.new('ShaderNodeTexCoord')
+    tc.location = (-1100, 450)
+    mp = nt.nodes.new('ShaderNodeMapping')
+    mp.location = (-900, 450)
+    mp.vector_type = 'POINT'
+    mp.inputs['Scale'].default_value = (1.0 / (x1 - x0), 1.0 / (y1 - y0), 1.0)
+    mp.inputs['Location'].default_value = (-x0 / (x1 - x0), -y0 / (y1 - y0), 0.0)
+    nt.links.new(tc.outputs['Object'], mp.inputs['Vector'])
+    img = nt.nodes.new('ShaderNodeTexImage')
+    img.location = (-650, 450)
+    img.image = bpy.data.images.load(image_path, check_existing=True)
+    img.extension = 'CLIP'
+    img.interpolation = 'Cubic'
+    nt.links.new(mp.outputs['Vector'], img.inputs['Vector'])
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    mix.location = (-300, 450)
+    mix.inputs['A'].default_value = tuple(b.inputs['Base Color'].default_value)
+    mix.inputs['B'].default_value = srgb(col)
+    nt.links.new(img.outputs['Alpha'], mix.inputs['Factor'])
+    nt.links.new(mix.outputs['Result'], b.inputs['Base Color'])
+    return m

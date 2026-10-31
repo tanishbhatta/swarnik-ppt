@@ -231,6 +231,10 @@ def build_keypad(loc, rotz_deg, mats):
 def build_laptop(loc, rotz_deg, mats):
     LW, LD, LT = 0.304, 0.212, 0.0098
     parts = []
+    # printed legends, projected from above (layout matches tools/make_textures.py LAP_BOUNDS)
+    pitch_, y0_ = 0.01905, 0.031
+    M.add_projected_legend(mats['key'], os.path.join(TEX, 'laptop_legends.png'),
+                           (-7 * pitch_, y0_ - 3.0 * pitch_ - 0.0005, 7 * pitch_, y0_ + 3.0 * pitch_), col='#a9aaac')
     base = rounded_prism('lap_base', LW, LD, LT, 0.0095, seg=10, mat=mats['alu_lap'])
     bevel(base, 0.0012, 3)
     parts.append(base)
@@ -263,7 +267,7 @@ def build_laptop(loc, rotz_deg, mats):
     space = rounded_prism('lap_space', 5 * pitch - 0.0028, 0.0158, 0.0007, 0.0016, seg=3, z0=LT + 0.00006, mat=mats['key'], xy=(-0.5 * pitch, yb))
     bevel(space, 0.00025, 2)
     parts.append(space)
-    pad = rr_plane('lap_pad', 0.128, 0.080, 0.0045, 5, LT + 0.00003, mats['pad'], xy=(0, -0.0595))
+    pad = rr_plane('lap_pad', 0.125, 0.056, 0.0045, 5, LT + 0.00003, mats['pad'], xy=(0, -0.0655))
     parts.append(pad)
     # lid, built closed with the hinge on the origin, then opened 110°
     hinge = empty('lap_hinge', loc=(0, LD / 2 - 0.0015, LT), rot=(math.radians(-110), 0, 0))
@@ -275,11 +279,13 @@ def build_laptop(loc, rotz_deg, mats):
     scr_mat = M.screen('screen_laptop', os.path.join(TEX, 'laptop_screen.png'), strength=1.0)
     scr = rr_plane('lap_screen', SW, SH, 0.0015, 3, 0.0001, scr_mat, flip=True, xy=(0, cy),
                    uv=lambda x, y: (x / SW + 0.5, 0.5 - y / SH))
-    parent_all([lid, bez, scr], hinge)
+    cam_dot = rr_plane('lap_webcam', 0.0024, 0.0024, 0.0012, 6, 0.00009, mats['webcam'], flip=True,
+                       xy=(0, -(LD - 0.002) + 0.0036))
+    parent_all([lid, bez, scr, cam_dot], hinge)
     root = empty('laptop', loc=loc, rot=(0, 0, math.radians(rotz_deg)))
     hinge.parent = root
     parent_all(parts, root)
-    return root, parts + [lid, bez, scr]
+    return root, parts + [lid, bez, scr, cam_dot]
 
 
 # ── scene ────────────────────────────────────────────────────────────────────
@@ -333,6 +339,7 @@ def build():
         'kbwell': M.black_plastic('kbwell', 0.55, '#0c0c0d'),
         'key': M.black_plastic('lap_key', 0.42, '#121314'),
         'pad': M.aluminium_blasted('trackpad'),
+        'webcam': M.black_plastic('webcam', 0.08, '#17181b'),
     }
     for n in mats['pad'].node_tree.nodes:
         if n.type == 'BSDF_PRINCIPLED':

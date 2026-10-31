@@ -148,7 +148,7 @@ SHOTS = {
     'slide_06': shot(Vector((0.0, -0.85, 0.0)), 0.62, 76, yaw=0, u=0.5, v=0.5),
     'slide_07': shot(LAP, 1.02, 27, yaw=-8, u=0.73, v=0.52),
     'slide_07b': shot(P2, 0.52, 74, yaw=0, u=0.735, v=0.50),
-    'slide_08': shot(Vector((0.03, -1.40, 0.05)), 1.62, 47, yaw=-12, u=0.72, v=0.50, lens=40),
+    'slide_08': shot(Vector((0.03, -1.40, 0.05)), 1.62, 50, yaw=-12, u=0.72, v=0.50, lens=40),
 }
 # phone1 screen: voice-note UI on (1) or off (0, the screenshot is laid over it in the deck)
 SCREEN1 = {'slide_01': 1.0, 'slide_02': 0.0, 'slide_03': 0.0, 'slide_08': 1.0}

@@ -108,7 +108,7 @@
     // online shop: bag with handle and a price tag
     '<svg viewBox="0 0 104 104" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter">' +
       '<path d="M14 34 H74 V94 H14 Z"/><path d="M30 34 V24 C30 14 58 14 58 24 V34"/>' +
-      '<path d="M66 60 L90 60 L98 70 L90 80 L66 80 Z"/><circle cx="88" cy="70" r="2.5"/></svg>'
+      '<path d="M74 58 H90 L99 68 L90 78 H74"/><circle cx="90" cy="68" r="2.5"/></svg>'
   ];
 
   /* ── layouts ──────────────────────────────────────────────────────────── */

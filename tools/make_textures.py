@@ -269,6 +269,43 @@ def laptop_screen():
     c.save(os.path.join(TEX, "laptop_screen.png"))
 
 
+# Laptop keyboard layout, in laptop-local metres. Keep in sync with blender/build_scene.py (build_laptop).
+LAP_PITCH = 0.01905
+LAP_Y0 = 0.031                       # centre line of the key block
+LAP_BOUNDS = (-7 * LAP_PITCH, LAP_Y0 - 3.0 * LAP_PITCH - 0.0005, 7 * LAP_PITCH, LAP_Y0 + 3.0 * LAP_PITCH)  # x0, y0, x1, y1
+
+
+def laptop_legends():
+    rows = [
+        ["esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "del"],
+        ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "⌫"],
+        ["tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
+        ["caps", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "#", "enter"],
+        ["shift", "\\", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "↑", "shift"],
+    ]
+    bottom = [(-6.5, "ctrl"), (-5.5, "fn"), (-4.5, "⊞"), (-3.5, "alt"), (2.5, "alt"), (3.5, "ctrl"), (4.5, "←"), (5.5, "↓"), (6.5, "→")]
+    x0, y0, x1, y1 = LAP_BOUNDS
+    ppm = 2800 / (x1 - x0)            # pixels per metre
+    W, H = 2800, int(round((y1 - y0) * ppm))
+    c = Canvas(W, H, (0, 0, 0, 0), s=1)
+    big, small = font("500", 40), font("500", 24)
+    col = (255, 255, 255, 255)
+
+    def put(xm, ym, label):
+        px, py = (xm - x0) * ppm, (y1 - ym) * ppm
+        f = big if len(label) == 1 else small
+        c.text(px, py, label, f, col, anchor="mm")
+
+    for r, row in enumerate(rows):
+        ym = LAP_Y0 + (2.5 - r) * LAP_PITCH
+        for k, label in enumerate(row):
+            put((-6.5 + k) * LAP_PITCH, ym, label)
+    yb = LAP_Y0 - 2.5 * LAP_PITCH - 0.0005
+    for xu, label in bottom:
+        put(xu * LAP_PITCH, yb, label)
+    c.save(os.path.join(TEX, "laptop_legends.png"), mode="RGBA")
+
+
 def keycap_legend():
     legend = content_value("keycapLegend", "HOLD")
     W, H = 1024, 512
@@ -307,5 +344,6 @@ if __name__ == "__main__":
         laptop_screen()
     if not only or "legend" in only:
         keycap_legend()
+        laptop_legends()
     if not only or "placeholder" in only:
         gboard_placeholder(force="--force" in only)
