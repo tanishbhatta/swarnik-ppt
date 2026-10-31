@@ -21,7 +21,7 @@ Open `index.html` in Chrome or Edge, press F, then Space.
 | `index.html` + `css/deck.css` + `js/deck.js` | Done. 1920×1080 stage scaled to any screen, letterboxed in `#0E0F12`. |
 | `content.js` | Your content exactly as given, plus `showOptional`, `numberLabels`, and `screenCorners` (written by the render script). |
 | Beats | Keywords enter in sync with each Space press; earlier beats stay, dimmed to the secondary colour. |
-| Camera moves | 6 pre-rendered Blender sequences (44 frames each), played forwards or in reverse on a canvas. Text for the next slide enters at 70% of the move. |
+| Camera moves | 6 pre-rendered Blender sequences (60 frames each, played over 1.5 s ≈ 40 fps), forwards or in reverse on a canvas. Text for the next slide enters at 70% of the move. |
 | Slide 2 screenshot | Mapped onto the 3D phone screen with a CSS `matrix3d` homography from the 4 exported corners. Swap the PNG, no re-render needed. |
 | Keys | Space/→/PgDn/↓, ←/PgUp/↑, B, V, T, Shift+T, P, O, F, H/?. Mouse and wheel do nothing. Ctrl/Alt combos pass through. |
 | Presenter window (P) | Current line, next line, slide/beat, timer. Linked by BroadcastChannel + window messages + localStorage. Keys pressed there also drive the deck. |
@@ -46,9 +46,9 @@ AgX, "Medium High Contrast". No depth of field, no motion blur, OpenImageDenoise
 - Blender **4.5.0** was already installed (no winget needed).
 - Device: **OptiX on NVIDIA GeForce RTX 5070** (the brief said 5080; this machine has a 5070, 12 GB). Fallback order in the script: OptiX → CUDA → CPU.
 - Stills: 1920×1080, 256 samples, adaptive, denoised. **~2–4 s each.**
-- Sequences: 1600×900, 128 samples, 44 frames. **~1.1–1.4 s per frame, ~50–65 s per move.** Full set (8 stills + 6 moves): **~5.5 minutes.**
+- Sequences: 1600×900, 128 samples, 60 frames. **~1.1–1.5 s per frame, ~65–87 s per move.** Full set (8 stills + 6 moves): **~7.5 minutes.**
 - Encoding: stills as **lossless** WebP (lossy WebP turned the dark desk into visible blocks), sequence frames WebP q90.
-- **Asset size: ~11 MB total** (renders 10.4 MB) against the 150 MB budget.
+- **Asset size: 12.6 MB total** (renders 12.1 MB: stills 6.6 MB lossless, camera moves 5.6 MB) against the 150 MB budget.
 
 ## Test results (`node tools/check_deck.mjs`, Chrome, file://)
 
@@ -61,13 +61,14 @@ AgX, "Medium High Contrast". No depth of field, no motion blur, OpenImageDenoise
   `showOptional: false` (22 steps), a deleted still (its flat labelled panel appears), a deleted sequence frame (falls back to a cross-fade).
 - Frame pacing in headless Chrome: ~146 fps average during moves on this machine. Headless numbers are only indicative; check on the presenting laptop.
 - I looked at every screenshot. Fixes made from that review: arrows now start the next line ("English voice typing / → can't understand us"),
-  product lines no longer wrap, the keypad and laptop were moved clear of the text column, the screen reflection band on the second phone was removed.
+  product lines no longer wrap, the keypad and laptop were moved clear of the text column, the screen reflection band on the second phone was removed,
+  the laptop got printed key legends, a webcam and a proper gap above the trackpad, and a sliver of the keypad was framed out of the last shot.
 
 ## Decisions I made (no one to ask)
 
 - **Slides 3 and 6** use near-black "empty desk" stills so the downward journey stays continuous; both are typographic slides on top of them.
 - **Slide 8** shows the laptop and the phone (Today / Next) instead of every object; in a frame wide enough for all four, the phone and keycap were specks.
-- **Camera-move frames are 1600×900** (spec allowed it) so decoded memory stays around 0.5 GB: only the moves next to the current slide are kept decoded.
+- **Camera-move frames are 1600×900** (spec allowed it). Only the two moves next to the current slide are kept decoded (~0.7 GB). On machines that report ≤ 4 GB RAM the frames are decoded at 1280×720 instead (~0.4 GB); the still at the end of each move is always full size.
 - **Teal** (`#3FB8AA`) only for text the app outputs: slide 6 final line and "ghar", slide 7 "xa · cha · chha", slide 8 "… lekhxa.", and the typed text on the rendered screens.
 - The key on slide 4 sits on a small generic 5-key pad (no brand). The legend text is read from `content.js` → `keycapLegend` at build time.
 - Screen textures are flat UI I drew with Pillow: a group chat "Class 12 B" with voice notes, a chat with "Rohan" and a plain keyboard

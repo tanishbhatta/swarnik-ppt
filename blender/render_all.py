@@ -7,7 +7,7 @@ options
     --stills           render stills only
     --seqs             render sequences only
     --only a,b         only these stills / sequences (e.g. slide_04,seq_03_04)
-    --frames N         frames per sequence (default 44)
+    --frames N         frames per sequence (default 60)
     --seq-size WxH     sequence resolution (default 1600x900)
 
 Writes PNGs to blender/_frames/ (not committed). tools/encode_frames.py turns them into WebP.
@@ -41,7 +41,7 @@ def opt(name, default=None):
 
 PREVIEW = bool(opt('--preview'))
 ONLY = set(str(opt('--only', '')).split(',')) - {''}
-FRAMES = int(opt('--frames', 44))
+FRAMES = int(opt('--frames', 60))
 SEQ_W, SEQ_H = [int(v) for v in str(opt('--seq-size', '1600x900')).split('x')]
 DO_STILLS = not opt('--seqs')
 DO_SEQS = not opt('--stills') and not PREVIEW

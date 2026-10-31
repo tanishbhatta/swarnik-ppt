@@ -47,7 +47,7 @@ window.RENDERS = {
    "from": "slide_01",
    "to": "slide_02",
    "dir": "seq_01_02",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900
@@ -56,7 +56,7 @@ window.RENDERS = {
    "from": "slide_02",
    "to": "slide_03",
    "dir": "seq_02_03",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900
@@ -65,7 +65,7 @@ window.RENDERS = {
    "from": "slide_03",
    "to": "slide_04",
    "dir": "seq_03_04",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900
@@ -74,7 +74,7 @@ window.RENDERS = {
    "from": "slide_06",
    "to": "slide_07",
    "dir": "seq_06_07",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900
@@ -83,7 +83,7 @@ window.RENDERS = {
    "from": "slide_07",
    "to": "slide_07b",
    "dir": "seq_07a_07b",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900
@@ -92,7 +92,7 @@ window.RENDERS = {
    "from": "slide_07b",
    "to": "slide_08",
    "dir": "seq_07_08",
-   "frames": 44,
+   "frames": 60,
    "ext": "webp",
    "w": 1600,
    "h": 900

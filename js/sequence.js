@@ -19,9 +19,9 @@
     });
   }
 
-  function toBitmap(img) {
+  function toBitmap(img, opts) {
     if (window.createImageBitmap) {
-      return createImageBitmap(img).catch(function () {
+      return (opts ? createImageBitmap(img, opts) : createImageBitmap(img)).catch(function () {
         return (img.decode ? img.decode().catch(function () {}) : Promise.resolve()).then(function () { return img; });
       });
     }
@@ -37,6 +37,9 @@
     this.list = [];                        // sequence metas
     this.anim = null;
     this.shown = null;                     // name of still currently on canvas (or null)
+    // low-memory machines (≤ 4 GB reported): decode camera-move frames at 1280×720 (~half the memory)
+    this.frameOpts = (navigator.deviceMemory && navigator.deviceMemory <= 4)
+      ? { resizeWidth: 1280, resizeHeight: 720, resizeQuality: 'medium' } : null;
     this.snap = document.createElement('canvas');
     this.snap.width = W; this.snap.height = H;
     this.snapCtx = this.snap.getContext('2d', { alpha: false });
@@ -86,10 +89,11 @@
   };
 
   Player.prototype.ensure = function (s, onFrame) {
+    var self = this;
     if (!s) return Promise.resolve(false);
     if (s.state === 'ready') return Promise.resolve(true);
     if (s.state === 'broken') return Promise.resolve(false);
-    if (s.promise) return s.promise;
+    if (s.promise) { if (s.state === 'released') s.state = 'loading'; return s.promise; }
     var m = s.meta, n = m.frames, frames = new Array(n), next = 0, failed = false;
     s.state = 'loading';
     function pad(i) { var t = String(i + 1); while (t.length < 4) t = '0' + t; return t; }
@@ -98,7 +102,7 @@
       var i = next++;
       if (i >= n) return Promise.resolve();
       return loadImage(m.dir + '/' + pad(i) + '.' + (m.ext || 'webp'))
-        .then(toBitmap)
+        .then(function (img) { return toBitmap(img, self.frameOpts); })
         .then(function (bm) { frames[i] = bm; if (onFrame) onFrame(); return worker(); },
               function () { failed = true; });
     }
@@ -106,8 +110,10 @@
     for (var k = 0; k < 4; k++) workers.push(worker());
     s.promise = Promise.all(workers).then(function () {
       s.promise = null;
-      if (s.state === 'released') { closeAll(frames); s.state = 'idle'; return false; }
+      var got = 0;
+      for (var i = 0; i < n; i++) if (frames[i]) got++;
       if (failed) { closeAll(frames); s.state = 'broken'; return false; }
+      if (s.state === 'released' || got !== n) { closeAll(frames); s.state = 'idle'; return false; }
       s.frames = frames; s.state = 'ready'; return true;
     });
     return s.promise;
