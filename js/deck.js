@@ -519,7 +519,7 @@
       sections.forEach(function (sec) { if (sec._printImg && sec._printImg.getAttribute('src') === src) existing = sec._printImg; });
       var p = existing
         ? new Promise(function (res, rej) {
-            if (existing.complete && existing.naturalWidth) res(existing);
+            if (existing.complete) { if (existing.naturalWidth) res(existing); else rej(new Error('missing')); }
             else { existing.addEventListener('load', function () { res(existing); }); existing.addEventListener('error', rej); }
           })
         : window.SeqPlayer.loadImage(src);
@@ -760,8 +760,8 @@
   /* ── overlays: help, overview, black, video ───────────────────────────── */
   var help = $('#help'), ov = $('#overview'), black = $('#blackout');
   help.innerHTML = '<div class="inner"><h2>Keys</h2><dl>' + [
-    ['Space  →  PgDn  ↓', 'Next beat'],
-    ['←  PgUp  ↑', 'Previous beat'],
+    ['Space  /  →  /  PgDn  /  ↓', 'Next beat'],
+    ['←  /  PgUp  /  ↑', 'Previous beat'],
     ['B', 'Black screen on / off'],
     ['V', 'Backup demo video (V or Esc closes)'],
     ['T  /  Shift+T', 'Timer on / off  ·  reset'],

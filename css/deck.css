@@ -128,7 +128,7 @@ p { margin: 0; }
   white-space: nowrap;
 }
 .folio {
-  position: absolute; left: 120px; top: 52px;
+  position: absolute; left: 120px; top: 56px;
   font-family: var(--mono); font-size: 18px; letter-spacing: 0.06em; color: var(--fg2);
   font-feature-settings: "tnum";
 }

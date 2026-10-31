@@ -60,7 +60,7 @@ Needs Blender 4.4+ (4.5 is installed at `C:\Program Files\Blender Foundation\Ble
 set B="C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
 python tools\make_textures.py                                     (screen textures + keycap legend)
 %B% -b --factory-startup -P blender\build_scene.py                (rebuilds blender\scene.blend)
-%B% -b blender\scene.blend -P blender\render_all.py               (stills + camera moves, ~10 min on the RTX 5070)
+%B% -b blender\scene.blend -P blender\render_all.py               (stills + camera moves, ~6 min on the RTX 5070)
 %B% -b blender\scene.blend -P blender\render_all.py -- --preview  (fast low-res stills, to check framing)
 python tools\encode_frames.py                                     (PNG → WebP + manifest)
 ```
