@@ -1,0 +1,6 @@
+node_modules/
+shots/
+blender/_frames/
+blender/_test/
+*.blend1
+tools/_tmp/

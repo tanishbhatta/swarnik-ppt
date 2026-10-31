@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pitch deck</title>
+<link rel="stylesheet" href="css/deck.css">
+</head>
+<body>
+<div id="viewport">
+  <div id="stage">
+    <canvas id="seq" width="1920" height="1080"></canvas>
+    <div id="slides"></div>
+    <div id="blackout"></div>
+    <div id="loader"><i></i></div>
+    <div id="timer">0:00</div>
+    <div id="help" class="overlay"></div>
+    <div id="overview" class="overlay"></div>
+  </div>
+</div>
+<div id="video-layer"><video id="video" playsinline preload="none"></video></div>
+<input id="video-pick" type="file" accept="video/*">
+
+<script src="content.js"></script>
+<script src="assets/renders/manifest.js"></script>
+<script src="js/sequence.js"></script>
+<script src="js/deck.js"></script>
+</body>
+</html>
