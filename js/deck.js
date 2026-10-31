@@ -492,7 +492,7 @@
       else if (sec.classList.contains('lay-close')) {
         for (var kb = 136; kb >= 72; kb -= 4) {
           txt.style.setProperty('--kb', kb + 'px');
-          txt.style.setProperty('--k', Math.max(48, Math.round(kb * 0.5)) + 'px');
+          txt.style.setProperty('--k', Math.max(48, Math.round(kb * 0.44)) + 'px');
           var big = $$('.big .ln', txt).every(function (e) { return e.getClientRects().length <= 1 && e.scrollWidth <= e.clientWidth; });
           var bigOneLine = $$('.big .ln', txt).every(function (e) {
             var r = document.createRange(); r.selectNodeContents(e); return r.getClientRects().length <= 1;

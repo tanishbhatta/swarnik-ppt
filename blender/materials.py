@@ -74,8 +74,8 @@ def _micro_bump(nt, bsdf, scale, strength, distance=0.0002, rough_var=None):
 
 def desk():
     m, nt, b = _new('desk')
-    _set(b, base=srgb('#1b1a19'), rough=0.66, spec=0.35)
-    _micro_bump(nt, b, scale=1800.0, strength=0.06, distance=0.0003, rough_var=(0.6, 0.72))
+    _set(b, base=srgb('#1b1a19'), rough=0.74, spec=0.12)
+    _micro_bump(nt, b, scale=1800.0, strength=0.06, distance=0.0003, rough_var=(0.7, 0.8))
     return m
 
 

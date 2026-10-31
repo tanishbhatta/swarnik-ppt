@@ -25,7 +25,7 @@ sys.path.insert(0, HERE)
 import materials as M  # noqa: E402
 
 U = 0.01905  # keyboard unit (m)
-KEY_W = 36.0   # key light power (W); everything else scales from it
+KEY_W = 115.0   # key light power (W); everything else scales from it
 RIM_W = 4.0
 
 
@@ -360,7 +360,7 @@ def build():
     bg.inputs['Strength'].default_value = 1.0
 
     # studio lights: long soft key from the left, weak fill right, rims per object
-    key = area_light('key', (-1.0, -0.9, 1.35), (0.15, -0.9, 0.0), 1.1, 4.2, KEY_W)
+    key = area_light('key', (-1.6, -0.9, 2.4), (0.1, -0.9, 0.0), 2.0, 5.5, KEY_W)
     # flag the big key light off the screens (its reflection would wash out the UI)
     flag = bpy.data.collections.new('key_excludes')
     for nm in ('phone1_screen', 'phone2_screen', 'lap_screen'):
@@ -371,7 +371,7 @@ def build():
             co.light_linking.link_state = 'EXCLUDE'
     except Exception as e:
         print('light linking unavailable:', e)
-    area_light('fill', (1.3, -0.9, 0.8), (0.0, -0.9, 0.0), 1.2, 4.2, KEY_W * 0.14)
+    area_light('fill', (1.8, -0.9, 1.6), (0.0, -0.9, 0.0), 1.6, 5.5, KEY_W * 0.14)
     rim_for('phone1', p1_parts, (0.0, 0.0), RIM_W)
     rim_for('keypad', kp_parts, (0.0, -0.55), RIM_W * 0.4, size=(0.3, 0.015))
     rim_for('laptop', lp_parts, (0.0, -1.25), RIM_W * 1.5, size=(0.8, 0.03))

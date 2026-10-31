@@ -171,6 +171,7 @@ p { margin: 0; }
 .lay-product .b-name.past .tag { color: var(--fg); }
 .lay-product .b-name.past { color: var(--fg); }
 .lay-product .beat + .beat { margin-top: calc(var(--k) * 0.36); }
+.lay-product .beat .ln { white-space: nowrap; text-wrap: nowrap; }
 .lay-product .b-name + .beat { margin-top: 112px; }
 
 /* ── layout: how it works (numbered rows) ──────────────────────────────── */

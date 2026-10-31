@@ -144,7 +144,7 @@ SHOTS = {
     'slide_01': shot(P1, 0.66, 52, yaw=0, u=0.735, v=0.50),
     'slide_02': shot(P1, 0.47, 76, yaw=0, u=0.735, v=0.50),
     'slide_03': shot(Vector((0.0, -0.30, 0.0)), 0.62, 70, yaw=0, u=0.5, v=0.5),
-    'slide_04': shot(HOLD + Vector((-0.004, 0.006, 0)), 0.235, 40, yaw=-14, u=0.80, v=0.50),
+    'slide_04': shot(HOLD + Vector((-0.004, 0.006, 0)), 0.25, 40, yaw=-14, u=0.825, v=0.50),
     'slide_06': shot(Vector((0.0, -0.85, 0.0)), 0.62, 76, yaw=0, u=0.5, v=0.5),
     'slide_07': shot(LAP, 1.02, 27, yaw=-8, u=0.73, v=0.52),
     'slide_07b': shot(P2, 0.52, 74, yaw=0, u=0.735, v=0.50),
