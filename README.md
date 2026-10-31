@@ -12,7 +12,7 @@
 | ←, PageUp, ↑ | previous beat (camera moves play backwards) |
 | B (or .) | black screen on/off |
 | V | backup demo video, full screen. V or Esc closes it |
-| T | small timer, top right (turns red at 3:00). Shift+T resets it |
+| T | small timer, top right (turns red at 3:00). It starts counting at your first Space. Shift+T resets it to 0:00 and starts it |
 | P | presenter window: what to say now, what comes next, timer |
 | O | overview of all 8 slides. Arrows + Enter jump, O or Esc closes |
 | F | full screen |
@@ -74,6 +74,9 @@ npm install            (once; installs Playwright and a test-only ffmpeg)
 npx playwright install chromium
 node tools\check_deck.mjs
 ```
+
+If npm says it skipped the install script for `ffmpeg-static`, run `npm install-scripts approve ffmpeg-static`
+and `npm install` again (the check only uses ffmpeg to make a throwaway test video).
 
 It steps every beat at 1920×1080 and 1366×768, saves screenshots in `shots/`, checks overlaps,
 console errors, offline loading, every key, and that printing gives 8 pages.

@@ -76,6 +76,9 @@ AgX, "Medium High Contrast". No depth of field, no motion blur, OpenImageDenoise
 - Added small safety features: F5 (a clicker's "start show" button) is ignored so it can't reload the deck; `.` is an alias for black (common on clickers);
   a reload returns to the same beat (`#step` in the address bar); the mouse cursor hides after 1.5 s.
 - `{app}` is replaced everywhere from `appName`; the name is not written in any code file (the test checks this).
+- Flat-design rules: no gradients, shadows, blur, glow, emoji or bouncy easing anywhere in the HTML/CSS (checked with a grep).
+  Corner radius is 2px on tags; the one exception is the screenshot on slide 2, which is clipped to the same rounded corners
+  as the rendered phone screen so it sits exactly on the glass.
 
 ## Known issues / limits
 
