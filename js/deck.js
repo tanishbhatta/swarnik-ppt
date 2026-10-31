@@ -385,6 +385,7 @@
       boxW = 1000;
       boxH = Math.round(1000 * (meta.aspect || 2.12));
       radius = Math.round(boxW * (meta.radius || 0.1));
+      if (si.svg.parentNode !== sec) sec.appendChild(si.svg);
       if (wrap.parentNode !== sec) sec.insertBefore(wrap, si.svg);
       wrap.className = 'screen mapped';
     } else {

@@ -115,6 +115,23 @@ async function runViewport(browser, w, h, opts) {
   fs.mkdirSync(dir, { recursive: true });
   for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f));
 
+  const info = await page.evaluate(() => ({
+    stills: Object.keys((window.RENDERS || {}).stills || {}).length,
+    seqs: ((window.RENDERS || {}).sequences || []).length,
+    screen: window.__deck.screenMode(),
+    broken: [...document.images].filter((i) => i.getAttribute('src') && i.complete && !i.naturalWidth).map((i) => i.getAttribute('src')),
+  }));
+  console.log(`  info  ${tag}: ${info.stills} stills, ${info.seqs} camera moves, screenshot overlay: ${info.screen}`);
+  if (info.broken.length) fail(`${tag}: broken images ${info.broken.join(', ')}`);
+  if (info.stills && info.screen !== 'mapped') fail(`${tag}: screenshot overlay not mapped onto the 3D phone`);
+
+  // frame pacing: log rAF timestamps around each camera move
+  await page.evaluate(() => {
+    window.__frames = [];
+    const loop = (t) => { if (window.__deck.busy) window.__frames.push(t); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  });
+
   const sigs = [];
   for (let i = 0; i < total; i++) {
     if (i > 0) { await page.keyboard.press(i % 2 ? 'Space' : 'PageDown'); await settle(page); }
@@ -127,6 +144,14 @@ async function runViewport(browser, w, h, opts) {
     await page.screenshot({ path: path.join(dir, `${String(i).padStart(2, '0')}_s${st.slide + 1}_b${st.beat + 1}.png`) });
   }
   ok(`${tag}: stepped forward through ${total} steps`);
+  const pace = await page.evaluate(() => {
+    const f = window.__frames, gaps = [];
+    for (let i = 1; i < f.length; i++) { const g = f[i] - f[i - 1]; if (g < 400) gaps.push(g); }
+    gaps.sort((a, b) => a - b);
+    const avg = gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length);
+    return { n: gaps.length, fps: 1000 / avg, p95: gaps[Math.floor(gaps.length * 0.95)] || 0, over33: gaps.filter((g) => g > 33.4).length };
+  });
+  report.notes.push(`${tag} frame pacing during transitions: ${pace.n} frames, avg ${pace.fps.toFixed(1)} fps, p95 gap ${pace.p95.toFixed(1)} ms, ${pace.over33} gaps > 33 ms (headless, indicative only)`);
   // extra press at the end does nothing
   await page.keyboard.press('Space'); await page.waitForTimeout(200);
   if ((await page.evaluate(() => window.__deck.step)) !== total - 1) fail(`${tag}: advanced past the end`);

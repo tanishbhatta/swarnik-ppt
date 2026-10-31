@@ -26,7 +26,7 @@ window.DECK = {
   // Red outline on the broken word, % of the screenshot: { x, y, w, h }. null = no outline.
   gboardHighlight: null,
   // Filled in automatically by blender/render_all.py (pixel corners of the phone screen on slide 2).
-  screenCorners: null,
+  screenCorners: [[1249.05, 127.89], [1625.44, 158.54], [1602.14, 962.53], [1196.57, 926.92]],
 
   backupVideo: "assets/video/backup_demo.mp4",
 

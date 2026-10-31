@@ -87,9 +87,9 @@ def aluminium_satin():
     return m
 
 
-def aluminium_blasted():
+def aluminium_blasted(name='alu_blasted'):
     """Laptop: bead-blasted aluminium, roughness ~0.35, no anisotropy."""
-    m, nt, b = _new('alu_blasted')
+    m, nt, b = _new(name)
     _set(b, base=srgb('#c4c6c8'), metal=1.0, rough=0.36)
     _micro_bump(nt, b, scale=12000.0, strength=0.04, distance=0.00004)
     return m

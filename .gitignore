@@ -4,3 +4,4 @@ blender/_frames/
 blender/_test/
 *.blend1
 tools/_tmp/
+__pycache__/

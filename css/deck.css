@@ -162,7 +162,7 @@ p { margin: 0; }
 .lay-who .col.on:not(.past) .sub { color: var(--fg); }
 
 /* ── layout: product ───────────────────────────────────────────────────── */
-.lay-product .txt { left: 120px; top: 120px; width: 970px; height: 840px; }
+.lay-product .txt { left: 120px; top: 120px; width: 828px; height: 840px; }
 .lay-product .name {
   font-size: var(--kn, 224px); font-weight: 600; line-height: 1; letter-spacing: -0.045em;
   margin-left: -0.05em;
@@ -226,6 +226,7 @@ p { margin: 0; }
 /* ── problem slide: phone screen overlay ───────────────────────────────── */
 .screen { position: absolute; left: 0; top: 0; opacity: 0; transition: opacity 450ms var(--ease); }
 .slide.settled .screen { opacity: 1; }
+.slide:not(.settled) .screen, .slide:not(.settled) svg.hl { transition-duration: 160ms; }   /* leave fast: the camera is about to move */
 .screen .shot { position: absolute; left: 0; top: 0; overflow: hidden; background: #000; }
 .screen .shot img { position: absolute; display: block; }
 .screen .shot .ph {
