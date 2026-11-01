@@ -141,7 +141,7 @@ img { display: block; }
   opacity: 1; visibility: visible; translate: 0 0;
   transition: opacity 420ms var(--ease), translate 420ms var(--ease), visibility 0s linear 0s, color 600ms var(--ease);
 }
-.vchange .comp.on:not([data-flip]) { transition-delay: 200ms; }
+.vchange .comp.on:not([data-flip]) { transition-delay: 320ms; }
 .instant .comp, .instant .comp *, .instant .comp::before, .instant .comp::after { transition: none !important; }
 
 /* "you are here": 3 × 40 px accent rule on the newest component */
@@ -255,9 +255,10 @@ img { display: block; }
 .slide[data-id="users"][data-view="evidence"] .r-cols { top: 400px; width: var(--w7); }
 .slide[data-id="users"][data-view="evidence"] .c-column { row-gap: 8px; }
 .slide[data-id="users"][data-view="evidence"] .col-title { font-size: 36px; line-height: 1.3; }
-.slide[data-id="users"][data-view="evidence"] .col-sub { opacity: 0; height: 0; overflow: visible; }
+.slide[data-id="users"][data-view="evidence"] .col-sub { opacity: 0; height: 0; overflow: visible; transition: none; }
 .slide[data-id="users"][data-view="evidence"] .col-where { padding-top: 0; }
-.slide[data-id="users"][data-view="evidence"] .c-column::after { opacity: 0; }
+.slide[data-id="users"][data-view="evidence"] .c-column::after { opacity: 0; transition: none; }
+.vchange .comp:not(.cur)::before { transition: none; }
 .slide[data-id="users"] .r-comments { top: 568px; }
 .comments { width: var(--w7); }
 .comment { padding: 20px 0; border-top: 1px solid var(--rule); white-space: nowrap; }

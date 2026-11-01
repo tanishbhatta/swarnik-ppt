@@ -3,85 +3,78 @@
 ## Presenting
 
 1. Open `index.html` in **Chrome or Edge** (double-click it, no internet needed).
-2. Press **F** for full screen, then **Space** to start.
-3. The first screen is the quiet opening image. Space shows the first line.
+2. Press **F** for full screen, then **Space** for each beat.
 
 | Key | What it does |
 |---|---|
-| Space, →, PageDown, ↓ | next beat (clickers send PageDown) |
-| ←, PageUp, ↑ | previous beat (camera moves play backwards) |
-| B (or .) | black screen on/off |
-| V | backup demo video, full screen. V or Esc closes it |
-| T | small timer, top right (turns red at 3:00). It starts counting at your first Space. Shift+T resets it to 0:00 and starts it |
-| P | presenter window: what to say now, what comes next, timer |
-| O | overview of all 8 slides. Arrows + Enter jump, O or Esc closes |
+| Space, Right, Down, PageDown | next beat (clickers send PageDown) |
+| Left, Up, PageUp | previous beat (everything is reversible) |
+| B or . | black screen on/off |
+| D | switch theme: `paper` (light, for a lit hall) / `ink` (dark room) |
+| V | backup demo video, full screen. V or Esc closes it. If the file is missing, a file picker opens |
+| T | small timer in the header (turns red at 3:00). Shift+T resets it to 0:00 |
+| P | presenter window: the line to say now, the next line, section, beat, timer |
+| O | overview of the slides. Arrows + Enter jump, O or Esc closes |
 | F | full screen |
 | H or ? | key list |
 
-Mouse clicks and the scroll wheel do nothing, so the deck never moves by accident.
-F5 (the "start show" button on many clickers) is ignored so it can't reload the page.
-If the page does get reloaded, it comes back on the same beat (the beat number is in the address bar after `#`).
-To start from the very beginning, remove the `#…` from the address bar and reload.
+Mouse clicks and the scroll wheel do nothing. F5 (the "start show" button on some clickers) is ignored.
+If the page gets reloaded anyway, it comes back on the same beat (the beat number is after `#` in the address bar).
 
-**Presenter window:** press P, drag the new window to the laptop screen. Keys pressed in
-the presenter window (Space, arrows, PageUp/PageDown, B, T) also drive the deck.
+**Live demo (slide 3, third beat)**: the whole screen goes black. Alt+Tab to the real app, do the demo, Alt+Tab back, press Space.
 
-**Live demo (slide 5)** is pure black and silent. Alt+Tab to the real app, then come back and press Space.
+**Presenter window**: press P, drag the new window to the laptop screen. Space and the arrows pressed in the presenter window also move the deck.
 
-## Changing the words
+## Changing the words: edit `content.js` only
 
-Edit **`content.js` only**, save, reload the page.
+Save, then reload the page. If you break the file (a missing comma or quote), the deck shows a plain message instead of a blank page.
 
-- `appName`: the product name. It appears wherever `{app}` is written. Change it once here.
-- `slides` → `beats`: each Space press shows one beat.
-  - `show`: the words on screen. Each string is one line.
-  - `say`: the spoken line. Only shown in the presenter window (P).
-- `numbers`: only real measured numbers, e.g. `sentences: "120"`. Empty `""` hides it. If all
-  three are empty there is no numbers row at all. They appear bottom-left on slide 6, with the labels in `numberLabels`.
-- `gboardHighlight`: red outline around the broken word on the Gboard screenshot (slide 2, last beat).
-  Percent of the screenshot: `{ x: 30, y: 52, w: 25, h: 4 }` = starts 30% from the left, 52% from the top, 25% wide, 4% tall.
-  `null` = no outline. Tip: open the screenshot in Paint, read the pixel position of the word, divide by the image width/height.
-- `showOptional`: `false` skips the optional "hidden 'a'" beat on slide 6.
-- `screenCorners`: written automatically by the Blender render script. Don't edit by hand.
-- `keycapLegend`: the word printed on the 3D key. Changing it needs a re-render (below).
+- `appName`: the product name. It appears wherever `{app}` is written.
+- `teamName`, `members`, `school`: the team block on slide 1. An empty value is simply not shown.
+- `theme`: `"paper"` (default) or `"ink"`. D switches live.
+- `numbers`: only real numbers from your own survey and tests. `""` hides them.
+  - `surveyAsked` + `surveyYes` filled: slide 4 shows "X of Y" instead of the TikTok comments.
+  - `sentences` + `accuracy`: the two big figures on slide 5.
+- `realOutput`: paste the app's **real** output for the demo sentence (copy it from the app, don't retype it).
+  Until it's filled, slide 3 shows a red dashed box "Paste the real output in content.js".
+- `enabled: false` hides a whole slide (slide 6 "Business model" is off) or a single beat
+  (the hidden-‘a’ beat on slide 5 is off). Hidden things are skipped everywhere: keys, numbering, print.
+- In each beat, `show` is what appears on screen; `say` is the spoken line (presenter window only).
+  `sayIfEmpty` / `showIfEmpty` are used when the numbers that beat needs are empty.
+- `keycapLegend`: the word on the 3D key. Changing it needs a re-render (below).
 
-## Files to drop in
+## Files
 
-- **Gboard screenshot:** save it as `assets/screenshots/gboard.png` (replace the placeholder).
-  Any phone screenshot size works; it is fitted onto the 3D phone screen automatically.
-- **Backup demo video:** save it as `assets/video/backup_demo.mp4` (H.264 MP4 plays in Chrome and Edge).
-  If it is missing, pressing V opens a file picker instead.
+- `assets/screenshots/`: the four real screenshots used on slides 2 and 4. They are shown exactly as they are.
+- `assets/video/backup_demo.mp4`: the backup demo video (H.264 MP4). Put it there before presenting.
+- `assets/renders/v2/`: the three 3D renders (transparent, they work on both themes).
+
+## Print / PDF
+
+Ctrl+P → Save as PDF gives one 16:9 page per slide, each in its final state, in the current theme.
+
+## Old deck (v1)
+
+`v1/index.html` still opens and works, as a fallback. It uses its own copy of the old `content.js` in `v1/`.
 
 ## Re-rendering the 3D (only if you change the scene)
 
-Needs Blender 4.4+ (4.5 is installed at `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`).
+Needs Blender 4.4+ (4.5 is installed at `C:\Program Files\Blender Foundation\Blender 4.5\blender.exe`) and Python with Pillow + fontTools.
 
 ```
-set B="C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
-python tools\make_textures.py                                     (screen textures + keycap legend)
-%B% -b --factory-startup -P blender\build_scene.py                (rebuilds blender\scene.blend)
-%B% -b blender\scene.blend -P blender\render_all.py               (stills + camera moves, ~6 min on the RTX 5070)
-%B% -b blender\scene.blend -P blender\render_all.py -- --preview  (fast low-res stills, to check framing)
-python tools\encode_frames.py                                     (PNG → WebP + manifest)
+python tools\make_textures_v2.py
+"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe" -b --factory-startup -P blender\render_v2.py
+python tools\encode_v2.py
 ```
 
-`render_all.py` also writes the phone-screen corners into `content.js` (`screenCorners`).
+Add `-- --preview` at the end of the Blender line for fast half-size test renders.
 
 ## Checking the deck
 
 ```
-npm install            (once; installs Playwright and a test-only ffmpeg)
+npm install
 npx playwright install chromium
-node tools\check_deck.mjs
+npm run check
 ```
 
-If npm says it skipped the install script for `ffmpeg-static`, run `npm install-scripts approve ffmpeg-static`
-and `npm install` again (the check only uses ffmpeg to make a throwaway test video).
-
-It steps every beat at 1920×1080 and 1366×768, saves screenshots in `shots/`, checks overlaps,
-console errors, offline loading, every key, and that printing gives 8 pages.
-
-## Printing / PDF
-
-Ctrl+P → Save as PDF gives 8 landscape pages, one per slide, in their final state.
-Set "Background graphics" on if the browser asks.
+Writes screenshots of every beat to `shots/` (plus `shots/contact-sheet.png` and `shots/print.pdf`).

@@ -12,6 +12,7 @@
 
   var EASE = 'cubic-bezier(0.2, 0.7, 0.2, 1)';
   var EASE_OUT = 'cubic-bezier(0.4, 0, 1, 1)';
+  var EASE_GLIDE = 'cubic-bezier(0.45, 0, 0.15, 1)';   // FLIP: a visible glide, no overshoot
   var MS = { out: 280, in: 480, flip: 600 };
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var CHANNEL = 'pitch-deck';
@@ -259,7 +260,7 @@
     sl.el.classList.add('vchange');
     setSlideState(sl, bi);
     var last = targets.map(function (t) { return { r: stageRect(t), fs: parseFloat(getComputedStyle(t).fontSize) }; });
-    setTimeout(function () { sl.el.classList.remove('vchange'); }, MS.flip);
+    setTimeout(function () { sl.el.classList.remove("vchange"); }, MS.flip + 400);
     if (reduced) return;
     targets.forEach(function (t, i) {
       var f = first[i], l = last[i];
@@ -270,7 +271,7 @@
       run(t, [
         { transformOrigin: '0 0', transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')' },
         { transformOrigin: '0 0', transform: 'translate(0,0) scale(1)' }
-      ], { duration: MS.flip, easing: EASE });
+      ], { duration: MS.flip, easing: EASE_GLIDE });
     });
   }
 
@@ -316,6 +317,8 @@
     setDemo(sl.views[next.b] === 'demo');
     setChrome(next.s);
     broadcast();
+    // remember the beat in the address, so an accidental reload comes back to the same place
+    try { history.replaceState(null, '', '#' + (cur + 1)); } catch (e) { /* ignore */ }
   }
   function next() { go(cur + 1); }
   function prev() { go(cur - 1); }
@@ -466,7 +469,7 @@
   var KEYS = [
     ['Space · Right · Down · PgDn', 'Next beat'],
     ['Left · Up · PgUp', 'Previous beat'],
-    ['B', 'Black screen'],
+    ['B  .', 'Black screen'],
     ['D', 'Light / dark theme'],
     ['F', 'Fullscreen'],
     ['V', 'Backup video (Esc to close)'],
@@ -496,6 +499,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.ctrlKey || e.altKey || e.metaKey) return;      // browser shortcuts pass through
     var k = e.key, code = e.code;
+    if (k === 'F5') { e.preventDefault(); return; }       // clickers' "start show" button must not reload
     if (videoOpen) {
       if (k === 'Escape' || code === 'KeyV') { closeVideo(); e.preventDefault(); }
       return;
@@ -514,7 +518,7 @@
     switch (true) {
       case k === ' ' || k === 'ArrowRight' || k === 'PageDown' || k === 'ArrowDown': next(); break;
       case k === 'ArrowLeft' || k === 'PageUp' || k === 'ArrowUp': prev(); break;
-      case code === 'KeyB': toggleBlack(); break;
+      case code === 'KeyB' || k === '.': toggleBlack(); break;
       case code === 'KeyD': setTheme(theme === 'paper' ? 'ink' : 'paper'); break;
       case code === 'KeyF': toggleFullscreen(); break;
       case code === 'KeyV': openVideo(); break;
@@ -571,7 +575,8 @@
     if (started) return;
     started = true;
     document.body.classList.add('ready');
-    go(0);
+    var h = parseInt(String(location.hash || '').slice(1), 10);
+    go(h >= 1 && h <= steps.length ? h - 1 : 0);
   }
   Promise.all(FACES.map(function (f) { return document.fonts.load(f[0], f[1]); })).then(start, start);
   setTimeout(start, 2500);

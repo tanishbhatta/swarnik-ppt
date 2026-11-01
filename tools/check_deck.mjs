@@ -268,6 +268,25 @@ console.log('\n1920×1080');
   if ((await page.evaluate(() => window.__deck.index)) !== idx0) fail('a click or the wheel changed the beat'); else ok('clicks and the wheel do nothing');
   await page.keyboard.press('Escape');
 
+  // reload comes back to the same beat; F5 (clicker "start show") is ignored
+  await page.evaluate(() => window.__deck.go(5));
+  await settle(page, 300);
+  await page.reload();
+  await page.waitForFunction(() => window.__deck && document.body.classList.contains('ready'));
+  const afterReload = await page.evaluate(() => window.__deck.index);
+  if (afterReload === 5) ok('a reload comes back to the same beat (#6)'); else fail(`after reload: step ${afterReload}, expected 5`);
+  let navigated = false;
+  page.once('framenavigated', () => { navigated = true; });
+  await page.keyboard.press('F5');
+  await page.waitForTimeout(600);
+  if (!navigated && (await page.evaluate(() => window.__deck.index)) === 5) ok('F5 is ignored'); else fail('F5 reloaded the page');
+  await page.evaluate(() => window.__deck.go(2));
+  await settle(page, 300);
+
+  await page.keyboard.press('Period');
+  const dotOn = await page.evaluate(() => document.getElementById('blackout').classList.contains('on'));
+  await page.keyboard.press('Period');
+  if (dotOn) ok('"." (clicker black-screen button) toggles black'); else fail('"." did not black the screen');
   await page.keyboard.press('b');
   const bOn = await page.evaluate(() => document.getElementById('blackout').classList.contains('on'));
   await page.keyboard.press('b');
