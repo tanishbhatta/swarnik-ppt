@@ -150,7 +150,7 @@ PHONE = dict(w=0.0715, h=0.1475, t=0.0079, r=0.0095)
 DISPLAY = dict(w=0.0677, h=0.1437, r=0.0075)
 
 
-def build_phone(name, screen_img, loc, rotz_deg, mats):
+def build_phone(name, screen_img, loc, rotz_deg, mats, screen_strength=1.3):
     W, H, T, R = PHONE['w'], PHONE['h'], PHONE['t'], PHONE['r']
     parts = []
     frame = rounded_prism(name + '_frame', W, H, T - 0.0005, R, seg=12, mat=mats['alu'])
@@ -159,7 +159,7 @@ def build_phone(name, screen_img, loc, rotz_deg, mats):
     glass = rounded_prism(name + '_glass', W - 0.0006, H - 0.0006, 0.0006, R - 0.0003, seg=12, z0=T - 0.0006, mat=mats['glass'])
     bevel(glass, 0.00035, 3)
     parts.append(glass)
-    scr_mat = M.screen('screen_' + name, os.path.join(TEX, screen_img), strength=1.3)
+    scr_mat = M.screen('screen_' + name, os.path.join(TEX, screen_img), strength=screen_strength)
     scr = rr_plane(name + '_screen', DISPLAY['w'], DISPLAY['h'], DISPLAY['r'], 10, T + 0.00003, scr_mat)
     parts.append(scr)
     scr['display_w'], scr['display_h'], scr['display_r'] = DISPLAY['w'], DISPLAY['h'], DISPLAY['r']
@@ -203,7 +203,7 @@ def keycap_obj(name, w_units, height, mat, xy, z0, cutter_parent):
     return cap, cut
 
 
-def build_keypad(loc, rotz_deg, mats):
+def build_keypad(loc, rotz_deg, mats, legend_tex='keycap_legend.png', hero_col='#e3ddd2', blank_col='#38393c'):
     legend = content_value('keycapLegend', 'HOLD')
     parts = []
     cw, cd, ch = 3 * U + 0.0128, 2 * U + 0.0128, 0.0118
@@ -212,9 +212,9 @@ def build_keypad(loc, rotz_deg, mats):
     parts.append(case)
     plate = rr_plane('pad_plate', 3 * U + 0.0016, 2 * U + 0.0016, 0.0012, 4, ch + 0.00003, mats['plate'])
     parts.append(plate)
-    hero_mat = M.keycap('keycap_hero', '#e3ddd2', legend_path=os.path.join(TEX, 'keycap_legend.png'),
+    hero_mat = M.keycap('keycap_hero', hero_col, legend_path=os.path.join(TEX, legend_tex),
                         legend_col='#232325', legend_w=0.0215, legend_h=0.01075, legend_dy=0.0004)
-    blank_mat = M.keycap('keycap_blank', '#38393c')
+    blank_mat = M.keycap('keycap_blank', blank_col)
     z_cap = ch + 0.0016
     layout = [  # (name, units, x, y, hero)
         ('pad_key_a', 1.0, -U, U / 2, False), ('pad_key_b', 1.0, 0.0, U / 2, False), ('pad_key_c', 1.0, U, U / 2, False),
@@ -228,7 +228,7 @@ def build_keypad(loc, rotz_deg, mats):
     return root, parts
 
 
-def build_laptop(loc, rotz_deg, mats):
+def build_laptop(loc, rotz_deg, mats, screen_tex='laptop_screen.png', screen_strength=1.0):
     LW, LD, LT = 0.304, 0.212, 0.0098
     parts = []
     # printed legends, projected from above (layout matches tools/make_textures.py LAP_BOUNDS)
@@ -276,7 +276,7 @@ def build_laptop(loc, rotz_deg, mats):
     bez = rr_plane('lap_bezel', LW - 0.0024, LD - 0.0044, 0.0085, 8, 0.00015, mats['glass'], flip=True, xy=(0, -(LD - 0.002) / 2))
     SW, SH = 0.2920, 0.1830
     cy = -(LD - 0.002) + 0.0072 + SH / 2
-    scr_mat = M.screen('screen_laptop', os.path.join(TEX, 'laptop_screen.png'), strength=1.0)
+    scr_mat = M.screen('screen_laptop', os.path.join(TEX, screen_tex), strength=screen_strength)
     scr = rr_plane('lap_screen', SW, SH, 0.0015, 3, 0.0001, scr_mat, flip=True, xy=(0, cy),
                    uv=lambda x, y: (x / SW + 0.5, 0.5 - y / SH))
     cam_dot = rr_plane('lap_webcam', 0.0024, 0.0024, 0.0012, 6, 0.00009, mats['webcam'], flip=True,

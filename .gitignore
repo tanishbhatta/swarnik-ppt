@@ -5,3 +5,5 @@ blender/_test/
 *.blend1
 tools/_tmp/
 __pycache__/
+blender/_fonts/
+blender/_v2/
