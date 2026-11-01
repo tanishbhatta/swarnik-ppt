@@ -35,19 +35,18 @@ Save, then reload the page. If you break the file (a missing comma or quote), th
 - `numbers`: only real numbers from your own survey and tests. `""` hides them.
   - `surveyAsked` + `surveyYes` filled: slide 4 shows "X of Y" instead of the TikTok comments.
   - `sentences` + `accuracy`: the two big figures on slide 5.
-- `realOutput`: paste the app's **real** output for the demo sentence (copy it from the app, don't retype it).
-  Until it's filled, slide 3 shows a red dashed box "Paste the real output in content.js".
 - `enabled: false` hides a whole slide (slide 6 "Business model" is off) or a single beat
   (the hidden-‘a’ beat on slide 5 is off). Hidden things are skipped everywhere: keys, numbering, print.
 - In each beat, `show` is what appears on screen; `say` is the spoken line (presenter window only).
   `sayIfEmpty` / `showIfEmpty` are used when the numbers that beat needs are empty.
+- Slide 2: each `card` is one tool (name, screenshot, verdict). Beat 6 `verdicts: true` lists the three verdicts automatically from those cards.
 - `keycapLegend`: the word on the 3D key. Changing it needs a re-render (below).
 
 ## Files
 
 - `assets/screenshots/`: the four real screenshots used on slides 2 and 4. They are shown exactly as they are.
 - `assets/video/backup_demo.mp4`: the backup demo video (H.264 MP4). Put it there before presenting.
-- `assets/renders/v2/`: the three 3D renders (transparent, they work on both themes).
+- `assets/renders/v2/`: the 3D renders (transparent, they work on both themes): `phone_voicenotes` (slide 1), `keycap` (slide 3), `phone_keyboard` (slide 7). `laptop` is no longer used.
 
 ## Print / PDF
 

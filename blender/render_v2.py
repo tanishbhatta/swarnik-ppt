@@ -312,7 +312,18 @@ def shot_phone():
     return sc
 
 
-SHOTS = [('keycap', shot_keycap), ('laptop', shot_laptop), ('phone_keyboard', shot_phone)]
+def shot_phone_voice():
+    # slide 1: v1's voice-note chat texture (blender/textures/phone_voice.png), re-rendered the v2 way
+    sc = fresh_scene(1204, 1320)
+    rig(sc)
+    shadow_catcher()
+    m = mats_common()
+    root, parts = B.build_phone('phone', 'phone_voice.png', (0, 0, 0), -9.0, m, screen_strength=1.25)
+    camera(sc, parts, elev=64, fill=0.9)
+    return sc
+
+
+SHOTS = [('keycap', shot_keycap), ('laptop', shot_laptop), ('phone_keyboard', shot_phone), ('phone_voicenotes', shot_phone_voice)]
 
 
 def main():

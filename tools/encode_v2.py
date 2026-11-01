@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "blender", "_v2")
 DST = os.path.join(ROOT, "assets", "renders", "v2")
 os.makedirs(DST, exist_ok=True)
-for name in ("keycap", "laptop", "phone_keyboard"):
+for name in ("keycap", "laptop", "phone_keyboard", "phone_voicenotes"):
     png = os.path.join(SRC, name + ".png")
     if not os.path.exists(png):
         print("missing", os.path.relpath(png, ROOT))

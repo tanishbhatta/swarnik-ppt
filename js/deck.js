@@ -21,22 +21,30 @@
      VIEWS: a field in `show` that starts a new view on that slide.
      KEEP:  roles that stay on screen (and glide to a new spot) when that view starts. */
   var VIEWS = {
-    idea: { wordmark: 'brand' },
     users: { comments: 'evidence', figure: 'evidence' },
-    close: { statement: 'statement', closing: 'closing' }
+    science: { transform: 'letters' }
   };
   var KEEP = {
-    idea: { brand: ['quote'] },
     users: { evidence: ['headline', 'column'] },
-    close: { statement: ['label', 'headline'] }
+    science: { letters: ['headline'] }
   };
+  // roles that show only on their own beat: the next one replaces them (slide 2: one tool at a time)
+  var ONLY_CURRENT = { problem: ['card'] };
+  // roles that get the "you are here" rule even on the first beat of a view
+  var SERIES = ['card', 'column', 'step', 'row'];
   // where each role goes (slide CSS positions the regions)
   var REGION = {
     headline: 'head', tag: 'head', statement: 'statement', note: 'flow', badge: 'badge',
     wordmark: 'brand', oneLiner: 'brand', team: 'team', names: 'names', image: 'render',
     sequence: 'seq', row: 'rows', card: 'cards', column: 'cols', step: 'steps',
     comments: 'comments', proof: 'proof', figure: 'figure', figures: 'figs',
-    transform: 'transform', timeline: 'timeline', closing: 'closing', quote: 'quote'
+    transform: 'transform', timeline: 'timeline', closing: 'closing', quote: 'quote', verdicts: 'summary'
+  };
+  // per-slide exceptions: these roles share a flow with others on that slide
+  var REGION_BY_SLIDE = {
+    problem: { row: 'summary' },
+    solution: { sequence: 'brand' },
+    science: { badge: 'figs' }
   };
 
   /* ── helpers ──────────────────────────────────────────────────────────── */
@@ -126,7 +134,12 @@
       keys.forEach(function (k) {
         var fn = C[k];
         if (!fn) return;
-        fn(b.show[k]).forEach(function (el) { made.push({ key: k, el: el }); });
+        var v = b.show[k];
+        if (k === 'verdicts' && v === true) {
+          // the summary is built from this slide's own cards
+          v = sl.beats.filter(function (x) { return x.show && x.show.card; }).map(function (x) { return x.show.card; });
+        }
+        fn(v).forEach(function (el) { made.push({ key: k, el: el }); });
       });
       made.forEach(function (m, i) {
         var role = m.el.dataset.role, rname;
@@ -134,9 +147,9 @@
           if (hasHeadline && keys.indexOf('label') < keys.indexOf('headline')) rname = 'kicker';
           else {
             var nextEl = made[i + 1];
-            rname = nextEl ? (REGION[nextEl.el.dataset.role] || 'flow') : 'flow';
+            rname = nextEl ? (((REGION_BY_SLIDE[sl.id] || {})[nextEl.el.dataset.role]) || REGION[nextEl.el.dataset.role] || 'flow') : 'flow';
           }
-        } else rname = REGION[role] || 'flow';
+        } else rname = ((REGION_BY_SLIDE[sl.id] || {})[role]) || REGION[role] || 'flow';
         var el = m.el;
         el.dataset.beat = bi;
         el.dataset.view = view;
@@ -149,6 +162,7 @@
         });
         el.dataset.views = views.join(' ');
         if (views.length > 1) el.dataset.flip = '1';
+        if ((ONLY_CURRENT[sl.id] || []).indexOf(role) !== -1) el.dataset.only = '1';
         region(rname, view).appendChild(el);
         sl.comps.push(el);
       });
@@ -171,8 +185,7 @@
   slides.forEach(function (sl, si) { slidesBox.appendChild(buildSlide(sl, si)); });
 
   /* ── frame: header + footer ───────────────────────────────────────────── */
-  var hdrNum = $('.hdr-num'), hdrSec = $('.hdr-sec'), folio = $('.ftr-folio'), prog = $('.ftr-progress');
-  $('.hdr-brand').textContent = [D.appName, D.event].filter(function (s) { return !T.empty(s); }).join(' · ');
+  var hdrNum = $('.hdr-num'), hdrSec = $('.hdr-sec'), prog = $('.ftr-progress');
   document.title = [D.appName, D.event].filter(function (s) { return !T.empty(s); }).join(' · ') || 'Pitch deck';
   for (var i = 0; i < N; i++) prog.appendChild(mk('span', 'seg'));
   var segs = $$('.seg', prog);
@@ -180,7 +193,6 @@
   function setChrome(si) {
     hdrNum.textContent = pad2(si + 1);
     hdrSec.textContent = slides[si].section;
-    folio.textContent = pad2(si + 1) + ' / ' + pad2(N);
     segs.forEach(function (s, i) {
       s.className = 'seg' + (i < si ? ' done' : i === si ? ' cur' : '');
     });
@@ -189,16 +201,23 @@
   /* ── state ────────────────────────────────────────────────────────────── */
   function compOn(c, sl, bi) {
     var view = sl.views[bi];
-    return view !== 'demo' && +c.dataset.beat <= bi && c.dataset.views.split(' ').indexOf(view) !== -1;
+    var b = +c.dataset.beat;
+    if (c.dataset.only && b !== bi) return false;
+    return view !== 'demo' && b <= bi && c.dataset.views.split(' ').indexOf(view) !== -1;
   }
   function setSlideState(sl, bi) {
     var view = sl.views[bi];
     sl.el.dataset.view = view;
     var beatsInView = sl.views.filter(function (v) { return v === view; }).length;
+    var firstOfView = sl.views.indexOf(view);
+    var marked = false;                                    // one "you are here" rule per beat
     sl.comps.forEach(function (c) {
       var on = compOn(c, sl, bi);
       c.classList.toggle('on', on);
-      c.classList.toggle('cur', on && +c.dataset.beat === bi && !!c.dataset.mark && beatsInView > 1);
+      var series = SERIES.indexOf(c.dataset.role) !== -1;
+      var cur = !marked && on && +c.dataset.beat === bi && !!c.dataset.mark && beatsInView > 1 && (bi > firstOfView || series);
+      if (cur) marked = true;
+      c.classList.toggle('cur', cur);
     });
   }
   function setDemo(on) {
@@ -551,17 +570,17 @@
       });
       var hdr = mk('div', 'p-hdr',
         '<div class="hdr-l"><span class="hdr-num t-label">' + pad2(si + 1) + '</span><span class="hdr-sec t-label">' + T.esc(sl.section) + '</span></div>' +
-        '<div class="hdr-r"><span class="hdr-brand t-label">' + T.esc($('.hdr-brand').textContent) + '</span></div>');
+        '<div class="hdr-r"></div>');
       var ftr = mk('div', 'p-ftr',
-        '<div class="ftr-progress">' + slides.map(function (o, i) { return '<span class="seg' + (i < si ? ' done' : i === si ? ' cur' : '') + '"></span>'; }).join('') + '</div>' +
-        '<div class="ftr-folio t-label">' + pad2(si + 1) + ' / ' + pad2(N) + '</div>');
+        '<div class="ftr-progress">' + slides.map(function (o, i) { return '<span class="seg' + (i < si ? ' done' : i === si ? ' cur' : '') + '"></span>'; }).join('') + '</div>');
       page.appendChild(hdr);
       page.appendChild(clone);
       page.appendChild(ftr);
       root.appendChild(page);
     });
   }
-  buildPrint();
+  // after the images are in, so the print copies carry the final screenshot sizes
+  if (document.readyState === 'complete') buildPrint(); else window.addEventListener('load', buildPrint);
 
   /* ── start once the fonts are in (font-display: block, all local) ─────── */
   var FACES = [

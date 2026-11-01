@@ -86,7 +86,7 @@ const settle = async (page, ms = 760) => {
 const signature = (page) => page.evaluate(() => {
   const s = document.querySelector('#slides .slide.active');
   return s.dataset.id + '|' + s.dataset.view + '|' + [...s.querySelectorAll('.comp')].map((c) => (c.classList.contains('on') ? (c.classList.contains('cur') ? 'C' : 'o') : '.')).join('') +
-    '|' + document.querySelector('.hdr-num').textContent + '|' + document.querySelector('.ftr-folio').textContent + '|' + document.getElementById('stage').classList.contains('demo');
+    '|' + document.querySelector('.hdr-num').textContent + '|' + [...document.querySelectorAll('#ftr .seg')].findIndex((x) => x.classList.contains('cur')) + '|' + document.getElementById('stage').classList.contains('demo');
 });
 
 // overlaps, out-of-stage, clipped Devanagari — all in stage pixels
@@ -96,8 +96,24 @@ const layoutCheck = (page) => page.evaluate(() => {
   const k = sr.width / 1920;
   const toStage = (r) => ({ l: (r.left - sr.left) / k, t: (r.top - sr.top) / k, r: (r.right - sr.left) / k, b: (r.bottom - sr.top) / k });
   const slide = document.querySelector('#slides .slide.active');
-  const out = { overlaps: [], outside: [], clipped: [], boxes: 0 };
+  const out = { overlaps: [], outside: [], clipped: [], small: [], boxes: 0 };
   if (stage.classList.contains('demo')) return out;
+  {
+    // nothing the audience reads is under 28 px (stage pixels): slide text and the header
+    [slide, document.getElementById('hdr')].forEach((root) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = walker.nextNode())) {
+        if (!n.textContent.trim()) continue;
+        const el = n.parentElement;
+        const comp = el.closest('.comp');
+        if (root === slide && (!comp || !comp.classList.contains('on'))) continue;
+        if (el.closest('[hidden]')) continue;
+        const fs = parseFloat(getComputedStyle(el).fontSize);
+        if (fs < 27.5) out.small.push(fs + 'px: ' + n.textContent.trim().slice(0, 30));
+      }
+    });
+  }
   const groups = [];
   const textRects = (el) => {
     const rects = [];
@@ -123,6 +139,8 @@ const layoutCheck = (page) => page.evaluate(() => {
     const parts = c.matches('.c-card, .c-column, .c-step, .c-row, .c-figures, .c-timeline, .c-transform, .c-comments, .c-proof, .c-sequence, .c-team, .c-closing')
       ? [...c.querySelectorAll(':scope > *, .fig > *, .tl-stop > *, .tf-cell > *, .step-sample > *')] : [c];
     parts.forEach((p, i) => {
+      const pcs = getComputedStyle(p);
+      if (pcs.visibility === 'hidden' || parseFloat(pcs.opacity) < 0.05) return;   // faded-out parts don't count
       const rects = textRects(p);
       if (p.tagName === 'IMG' || p.querySelector('img')) {
         const im = p.tagName === 'IMG' ? p : p.querySelector('img');
@@ -160,7 +178,7 @@ const layoutCheck = (page) => page.evaluate(() => {
 async function walk(page, label, dir, opts = {}) {
   const n = await page.evaluate(() => window.__deck.steps.length);
   const steps = await page.evaluate(() => window.__deck.steps);
-  const issues = { overlaps: new Set(), outside: new Set(), clipped: new Set() };
+  const issues = { overlaps: new Set(), outside: new Set(), clipped: new Set(), small: new Set() };
   await page.evaluate(() => window.__deck.go(0));
   await settle(page);
   const start = await signature(page);
@@ -171,6 +189,7 @@ async function walk(page, label, dir, opts = {}) {
     lc.overlaps.forEach((o) => issues.overlaps.add(`${st.id} beat ${st.b + 1}: ${o}`));
     lc.outside.forEach((o) => issues.outside.add(`${st.id} beat ${st.b + 1}: ${o}`));
     lc.clipped.forEach((o) => issues.clipped.add(`${st.id} beat ${st.b + 1}: ${o}`));
+    lc.small.forEach((o) => issues.small.add(`${st.id} beat ${st.b + 1}: under 28 px: ${o}`));
     if (dir && opts.shots !== false) await page.screenshot({ path: path.join(dir, `${String(i + 1).padStart(2, '0')}_${st.id}_${st.b + 1}.png`) });
   }
   const idx = await page.evaluate(() => window.__deck.index);
@@ -179,7 +198,7 @@ async function walk(page, label, dir, opts = {}) {
   const end = await signature(page);
   if (end !== start) fail(`${label}: state after walking back differs from the start\n    start ${start}\n    end   ${end}`);
   else ok(`${label}: ${n} beats forwards and back, end state = start state`);
-  for (const k of ['overlaps', 'outside', 'clipped']) {
+  for (const k of ['overlaps', 'outside', 'clipped', 'small']) {
     if (issues[k].size) fail(`${label}: ${k}:\n    ` + [...issues[k]].join('\n    '));
     else ok(`${label}: no ${k}`);
   }
@@ -210,8 +229,9 @@ console.log('\n1920×1080');
   }
   const nSlides = await page.evaluate(() => window.__deck.slides.length);
   if (nSlides !== enabledSlides.length) fail(`deck has ${nSlides} slides, content.js enables ${enabledSlides.length}`); else ok(`${nSlides} enabled slides`);
-  const folio = await page.evaluate(() => document.querySelector('.ftr-folio').textContent);
-  if (folio !== `01 / ${String(nSlides).padStart(2, '0')}`) fail(`folio "${folio}"`); else ok(`numbering ${folio}`);
+  const chrome = await page.evaluate(() => ({ num: document.querySelector('.hdr-num').textContent, right: document.querySelector('.hdr-r').innerText.trim(), folio: !!document.querySelector('.ftr-folio'), segs: document.querySelectorAll('#ftr .seg').length }));
+  if (chrome.num === '01' && !chrome.right && !chrome.folio && chrome.segs === nSlides) ok(`header: section label only (no brand text); footer: ${chrome.segs} progress segments, no counter`);
+  else fail(`header/footer: ${JSON.stringify(chrome)}`);
   const title = await page.title();
   if (!title.includes(DECK.appName)) fail(`<title> is "${title}"`); else ok(`<title> "${title}"`);
 
@@ -219,9 +239,23 @@ console.log('\n1920×1080');
 
   // evidence text = content.js, character for character
   const problem = DECK.slides.find((s) => s.id === 'problem');
-  const cardOutputs = problem.beats.filter((b) => b.show && b.show.card).map((b) => b.show.card.output);
-  const shown = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="problem"] .card-output')].map((e) => e.textContent.replace(/ /g, ' ')));
-  if (JSON.stringify(shown) === JSON.stringify(cardOutputs)) ok('slide 2 outputs match content.js exactly'); else fail(`slide 2 outputs differ:\n    shown ${JSON.stringify(shown)}\n    file  ${JSON.stringify(cardOutputs)}`);
+  // slide 2: one tool per beat, screenshot as the hero, never upscaled more than 2.5x, previous card gone
+  const cards = problem.beats.filter((b) => b.show && b.show.card).map((b) => b.show.card);
+  const steps2 = await page.evaluate(() => window.__deck.steps.map((s, i) => ({ i, id: s.id, b: s.b })).filter((s) => s.id === 'problem'));
+  for (let k = 0; k < cards.length; k++) {
+    const st = steps2[2 + k];
+    await page.evaluate((i) => window.__deck.go(i), st.i);
+    await settle(page, 600);
+    const info = await page.evaluate(() => {
+      const on = [...document.querySelectorAll('#slides .slide[data-id="problem"] .c-card.on')];
+      const im = on[0] && on[0].querySelector('img');
+      return { visible: on.length, tool: on[0] && on[0].querySelector('.card-tool').textContent, w: im && im.clientWidth, h: im && im.clientHeight, nw: im && im.naturalWidth, nh: im && im.naturalHeight, verdictPx: on[0] && parseFloat(getComputedStyle(on[0].querySelector('.card-verdict')).fontSize) };
+    });
+    const scale = info.w / info.nw;
+    const msg = `slide 2 beat ${st.b + 1}: ${info.tool}: screenshot ${info.nw}×${info.nh} shown at ${info.w}×${info.h} (${scale.toFixed(2)}×), verdict ${info.verdictPx}px`;
+    if (info.visible === 1 && scale <= 2.5001 && Math.abs(info.w / info.h - info.nw / info.nh) < 0.02 && info.verdictPx >= 36) ok(msg); else fail(msg + ' · cards visible: ' + info.visible);
+    results.counts['shot_' + k] = msg;
+  }
   const users = DECK.slides.find((s) => s.id === 'users');
   const ev = users.beats.find((b) => b.showIfEmpty && b.showIfEmpty.comments);
   const comments = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="users"] .comment')].map((e) => e.textContent.replace(/ /g, ' ')));
@@ -486,20 +520,18 @@ console.log('\nvariant: business slide on, hidden-a beat on, all numbers empty')
   await ctx.close();
   await finals('paper', path.join(SHOTS, 'variant'), init);
 }
-console.log('\nvariant: survey numbers + realOutput filled (test values only, never saved)');
+console.log('\nvariant: survey numbers filled (test values only, never saved)');
 {
   const init = mutator(`(d) => {
     d.numbers.surveyAsked = '40'; d.numbers.surveyYes = '36';
-    d.realOutput.devanagari = 'ओइ अस्ति को होमवर्क पठाइदेन';
-    d.realOutput.roman = 'oye asti ko homework pathaidena';
     d.teamName = 'Team name';
   }`);
   const { ctx, page, log } = await open({ width: 1920, height: 1080 }, { init });
   await walk(page, 'filled', path.join(SHOTS, 'filled'));
   const fig = await page.evaluate(() => (document.querySelector('#slides .slide[data-id="users"] .fig-value') || {}).textContent);
   if (fig === '36 of 40') ok('filled: survey figure "36 of 40" replaces the comments'); else fail(`filled: figure ${fig}`);
-  const ph = await page.evaluate(() => document.querySelectorAll('.placeholder').length);
-  if (ph === 0) ok('filled: realOutput replaces both placeholders'); else fail(`filled: ${ph} placeholders left`);
+  const tn = await page.evaluate(() => (document.querySelector('#slides .team-name') || {}).textContent);
+  if (tn === 'Team name') ok('filled: team name shows on slide 1'); else fail('filled: team name ' + tn);
   if (log.errors.length) fail('filled errors:\n    ' + log.errors.join('\n    '));
   await ctx.close();
 }

@@ -1,7 +1,7 @@
 /* ───────────────────────────────────────────────────────────────────────────
    Components: one render function per field type used in content.js `show`.
    Each function returns an array of elements. deck.js places them on the grid.
-   Text helpers (placeholders, typography, Devanagari runs) live here too, so
+   Text helpers (placeholder tokens, typography, Devanagari runs) live here too, so
    presenter.html can share them.
    ─────────────────────────────────────────────────────────────────────────── */
 (function () {
@@ -13,9 +13,9 @@
   function get(path) {
     return path.split('.').reduce(function (o, k) { return o == null ? undefined : o[k]; }, D);
   }
-  var TOKEN = /\{(app|demoSentence|(?:numbers|realOutput)\.[A-Za-z0-9_]+)\}/g;
+  var TOKEN = /\{(app|demoSentence|numbers\.[A-Za-z0-9_]+)\}/g;
 
-  // Replace {app}, {demoSentence}, {numbers.x}, {realOutput.x}. info.missing = true if any value is empty.
+  // Replace {app}, {demoSentence}, {numbers.x}. info.missing = true if any value is empty.
   function fill(s, info) {
     return String(s == null ? '' : s).replace(TOKEN, function (m, k) {
       var v = k === 'app' ? D.appName : get(k);
@@ -87,7 +87,7 @@
     h = h.replace(/ ([A-Za-z]{1,3}[,;:.!?])(?= |$)/g, '\u00A0$1');
     if (opts.keepLast !== false) {
       // last two words on one line, but only when the last word is short (avoids orphans)
-      h = h.replace(/ ([^ <>]{1,9})((?:<\/span>)*)$/, '\u00A0$1$2');
+      h = h.replace(/ ([^ <>]{1,12})((?:<\/span>)*)$/, '\u00A0$1$2');
     }
     if (opts.hang) h = h.replace(/^((?:<span[^>]*>)*)“/, '$1<span class="hang">“</span>');
     return h;
@@ -135,9 +135,18 @@
     return i;
   }
 
-  // the dashed box shown in rehearsal when realOutput is still empty
-  function placeholder(msg) {
-    return mk('span', 'placeholder t-label', esc(msg || 'Paste the real output in content.js'));
+  // Evidence screenshots: as large as the layout allows, never upscaled more than 2.5×
+  var SHOT = { w: 1664, h: 540, up: 2.5 };
+  function sizeShot(i) {
+    function apply() {
+      var nw = i.naturalWidth, nh = i.naturalHeight;
+      if (!nw || !nh) return;
+      var k = Math.min(SHOT.w / nw, SHOT.h / nh, SHOT.up);
+      i.style.width = Math.floor(nw * k) + 'px';
+      i.style.height = Math.floor(nh * k) + 'px';
+      i.dataset.scale = k.toFixed(2);
+    }
+    if (i.complete && i.naturalWidth) apply(); else i.addEventListener('load', apply);
   }
 
   /* ── components ───────────────────────────────────────────────────────── */
@@ -173,7 +182,7 @@
       .filter(function (s) { return !empty(s); });
     if (!lines.length) return [];
     var e = mk('div', 'team');
-    lines.forEach(function (s, i) { e.appendChild(txt('p', 't-label' + (i === 0 && !empty(D.teamName) ? ' team-name' : ''), s, { keepLast: false })); });
+    lines.forEach(function (s, i) { e.appendChild(txt('p', 't-small' + (i === 0 && !empty(D.teamName) ? ' team-name' : ''), s, { keepLast: false })); });
     return [comp('team', e)];
   };
 
@@ -189,9 +198,9 @@
   C.sequence = function (list) {
     var items = (list || []).map(textValue).filter(Boolean);
     if (!items.length) return [];
-    var ol = mk('ol', 'sequence t-sub');
+    var ol = mk('ol', 'sequence t-body');
     items.forEach(function (s, i) {
-      if (i) ol.appendChild(mk('li', 'seq-arrow', SVG.down));
+      if (i) ol.appendChild(mk('li', 'seq-arrow', SVG.right));
       ol.appendChild(mk('li', 'seq-item', html(s)));
     });
     return [comp('sequence', ol, 'l')];
@@ -214,27 +223,34 @@
     }).filter(Boolean);
   };
 
-  // Evidence card: tool, exact output (typeset), screenshot as proof, verdict.
+  // Evidence card: tool name, the real screenshot as the hero, verdict.
   C.card = function (c) {
     if (!c) return [];
-    var output = textValue(c.output);
     var e = mk('article', 'card');
     var tool = textValue(c.tool);
-    e.appendChild(tool ? txt('p', 'card-tool t-label', tool, { keepLast: false }) : mk('p', 'card-tool t-label'));
-    var out = mk('p', 'card-output t-body mono');
-    if (output) {
-      out.innerHTML = html(output, { keepLast: false, marks: (c.wrong || []).map(function (w) { return { text: w, cls: 'wrong' }; }) });
-      if (DV.test(output)) out.classList.add('has-dv');
-      out.dataset.text = output;
-    }
-    e.appendChild(out);
+    e.appendChild(tool ? txt('p', 'card-tool t-small', tool, { keepLast: false }) : mk('p', 'card-tool'));
     var shot = mk('div', 'card-shot');
     var i = img(c.image, 'shot');
-    if (i) shot.appendChild(i);
+    if (i) { sizeShot(i); shot.appendChild(i); }
     e.appendChild(shot);
     var verdict = textValue(c.verdict);
-    e.appendChild(verdict ? mk('p', 'card-verdict t-small', '<span class="x">' + SVG.cross + '</span><span>' + html(verdict) + '</span>') : mk('p', 'card-verdict'));
-    return [comp('card', e, 't')];
+    e.appendChild(verdict ? mk('p', 'card-verdict t-body', '<span class="x">' + SVG.cross + '</span><span>' + html(verdict) + '</span>') : mk('p', 'card-verdict'));
+    return [comp('card', e)];
+  };
+
+  // Summary of the cards: ✕ + tool + verdict, one row each (deck.js passes the slide's cards).
+  C.verdicts = function (list) {
+    var items = (list || []).filter(function (c) { return c && (textValue(c.tool) || textValue(c.verdict)); });
+    if (!items.length) return [];
+    var e = mk('div', 'verdicts');
+    items.forEach(function (c) {
+      var r = mk('div', 'verdict-row');
+      r.appendChild(mk('span', 'x', SVG.cross));
+      r.appendChild(txt('p', 'v-tool t-small', textValue(c.tool) || '', { keepLast: false }));
+      r.appendChild(txt('p', 'v-verdict t-body', textValue(c.verdict) || ''));
+      e.appendChild(r);
+    });
+    return [comp('verdicts', e, 'l')];
   };
 
   C.column = function (c) {
@@ -306,32 +322,25 @@
     return [comp('figures', e)];
   };
 
-  // "How it works" column: number, title, Borrowed/Ours tag, then the sample.
+  // "How it works" column: number, title, Borrowed/Ours tag, then a one-line description or a sample.
   C.step = function (s) {
     if (!s) return [];
     var e = mk('article', 'step');
-    e.appendChild(mk('p', 'step-n t-label', esc(fill(s.n) ? (fill(s.n).length < 2 ? '0' + fill(s.n) : fill(s.n)) : '')));
+    var n = fill(s.n);
+    e.appendChild(mk('p', 'step-n t-label', esc(n ? (n.length < 2 ? '0' + n : n) : '')));
     var title = textValue(s.title);
-    e.appendChild(title ? txt('h3', 'step-title t-sub', title, { keepLast: false }) : mk('h3', 'step-title'));
+    e.appendChild(title ? txt('h3', 'step-title', title, { keepLast: false }) : mk('h3', 'step-title'));
     var tag = textValue(s.tag);
     var tagBox = mk('div', 'step-tag');
     if (tag) tagBox.innerHTML = '<span class="tag ' + (/^ours$/i.test(tag) ? 'tag-ours' : 'tag-borrowed') + '">' + esc(tag) + '</span>';
     e.appendChild(tagBox);
     var sample = mk('div', 'step-sample');
-    if (s.devanagari !== undefined) {
-      var d = textValue(s.devanagari);
-      sample.appendChild(d ? txt('p', 'sample-dv t-body', d, { keepLast: false }) : placeholder());
-    }
-    if (s.from !== undefined || s.to !== undefined) {
-      var from = textValue(s.from), to = textValue(s.to);
-      if (from) sample.appendChild(txt('p', 'sample-from t-body', from, { keepLast: false }));
-      if (from && to) sample.appendChild(mk('p', 'sample-arrow', SVG.down));
-      if (to) sample.appendChild(txt('p', 'sample-to t-body mono typed', to, { keepLast: false }));
-    }
-    if (s.typed !== undefined) {
-      var t = textValue(s.typed);
-      sample.appendChild(t ? txt('p', 'sample-typed t-body mono typed', t, { keepLast: false }) : placeholder());
-    }
+    var desc = textValue(s.desc);
+    if (desc) sample.appendChild(txt('p', 'step-desc t-body', desc));
+    var from = textValue(s.from), to = textValue(s.to);
+    if (from) sample.appendChild(txt('p', 'sample-from', from, { keepLast: false }));
+    if (from && to) sample.appendChild(mk('p', 'sample-arrow', SVG.down));
+    if (to) sample.appendChild(txt('p', 'sample-to mono typed', to, { keepLast: false }));
     e.appendChild(sample);
     return [comp('step', e, 't')];
   };

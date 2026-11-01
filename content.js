@@ -17,15 +17,10 @@ window.DECK = {
   },
 
   demoSentence: "oye asti ko homework pathaidena",
-  // Paste the app's REAL output for the demo sentence (copy it from the app, don't retype).
-  realOutput: {
-    devanagari: "",                   // what the speech model wrote
-    roman: ""                         // what Swarnik typed
-  },
 
   images: {
+    phoneVoice: "assets/renders/v2/phone_voicenotes.webp",
     keycap: "assets/renders/v2/keycap.webp",
-    laptop: "assets/renders/v2/laptop.webp",
     phoneKeyboard: "assets/renders/v2/phone_keyboard.webp",
     englishVoice: "assets/screenshots/english_voice_google.png",
     nepaliVoice: "assets/screenshots/nepali_voice.png",
@@ -37,11 +32,9 @@ window.DECK = {
   slides: [
     { id: "idea", section: "Idea", speaker: "Jebisha", enabled: true, beats: [
       { say: "Every voice note you’ve ever sent was a message you didn’t feel like typing.",
-        show: { quote: "Every voice note is a message you didn’t feel like typing." } },
-      { say: "We’re Jebisha and Tanish, and this is {app}. You talk the way you talk, and it types the way we chat.",
-        show: { wordmark: "{app}",
-                oneLiner: "A Windows app that turns spoken Nepali and English into Roman Nepali, the way we chat.",
-                team: true, image: "keycap" } }
+        show: { quote: "Every voice note is a message you didn’t feel like typing.", image: "phoneVoice" } },
+      { say: "We’re Jebisha and Tanish.",
+        show: { team: true } }
     ]},
 
     { id: "problem", section: "The problem", speaker: "Jebisha", enabled: true, beats: [
@@ -51,29 +44,26 @@ window.DECK = {
         show: { label: "We said one normal sentence", quote: "“{demoSentence}”" } },
       { say: "English voice typing heard “oye ostiko homework what I dinner.” (Wait for the laugh.)",
         show: { card: { tool: "English voice typing · Google",
-                        output: "oye ostiko homework what I dinner",
-                        wrong: ["ostiko", "what I dinner"],
                         image: "englishVoice",
                         verdict: "Can’t understand Nepali" } } },
       { say: "Nepali voice typing wrote it all in Devanagari, even “homework.”",
         show: { card: { tool: "Nepali voice typing",
-                        output: "ओइ अस्तिको होमवर्क पठाइदेन",
-                        wrong: ["होमवर्क"],
                         image: "nepaliVoice",
                         verdict: "All Devanagari, even “homework”" } } },
       { say: "And Wispr Flow, one of the best AI voice typing apps, kept “homework” in English, but wrote the rest in Devanagari.",
         show: { card: { tool: "Wispr Flow · AI voice typing",
-                        output: "ओइ, अस्तिको homework पठाइदे न।",
-                        wrong: [],
                         image: "wisprFlow",
                         verdict: "Keeps “homework”, rest in Devanagari" } } },
       { say: "None of them write the way we actually write.",
-        show: { rows: [ { label: "How we actually write", chat: "{demoSentence}" } ] } }
+        show: { verdicts: true,
+                rows: [ { label: "How we actually write", chat: "{demoSentence}" } ] } }
     ]},
 
     { id: "solution", section: "Your solution", speaker: "Tanish", enabled: true, beats: [
-      { say: "{app} is a Windows app, and it’s running on this laptop right now.",
-        show: { headline: "{app} is a Windows app.", tag: "Working prototype", image: "laptop" } },
+      { say: "So we made {app}. You talk the way you talk, and it types the way we chat. It’s a Windows app, and it’s running on this laptop right now.",
+        show: { wordmark: "{app}",
+                oneLiner: "A Windows app that turns spoken Nepali and English into Roman Nepali, the way we chat.",
+                image: "keycap" } },
       { say: "You hold one key, you speak, and it types wherever your cursor is. Let’s try it.",
         show: { sequence: ["Hold one key", "Speak", "It types where your cursor is"] } },
       { demo: true,
@@ -81,11 +71,11 @@ window.DECK = {
       { view: "how",
         say: "After you let go, a free speech model writes what you said in Devanagari. We didn’t build that part.",
         show: { headline: "How it works",
-                step: { n: "1", title: "Speech model", tag: "Borrowed", devanagari: "{realOutput.devanagari}" } } },
+                step: { n: "1", title: "Speech model", tag: "Borrowed", desc: "Writes what you said in Devanagari" } } },
       { say: "Then our code puts the English words back in English,",
         show: { step: { n: "2", title: "English words back", tag: "Ours", from: "होमवर्क", to: "homework" } } },
       { say: "and our rules turn the rest into how we text.",
-        show: { step: { n: "3", title: "Chat spelling", tag: "Ours", typed: "{realOutput.roman}" } } }
+        show: { step: { n: "3", title: "Chat spelling", tag: "Ours", desc: "Turns the rest into how we text" } } }
     ]},
 
     { id: "users", section: "Target users", speaker: "Jebisha", enabled: true, beats: [
@@ -158,12 +148,8 @@ window.DECK = {
     ]},
 
     { id: "close", section: "Conclusion and pitch", speaker: "Tanish", enabled: true, beats: [
-      { say: "Before the final, we want a hundred students to try it and break it.",
-        show: { label: "Next step", headline: "100 students try it and break it, before 22 November." } },
-      { say: "We didn’t ask anyone to change how they write. We made the computer catch up.",
-        show: { statement: "We didn’t ask anyone to change how they write. We made the computer catch up." } },
-      { say: "BOTH: Tapai bolnus. {app} lekhxa. (Hold still for two seconds.) Thank you.",
-        show: { closing: { spoken: "Tapai bolnus.", typed: "{app} lekhxa." }, names: "Jebisha · Tanish" } }
+      { say: "We didn’t ask anyone to change how they write. We made the computer catch up. BOTH: Tapai bolnus. {app} lekhxa. Thank you.",
+        show: { statement: "We didn’t ask anyone to change how they write. We made the computer catch up." } }
     ]}
   ]
 };
