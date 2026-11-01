@@ -190,7 +190,15 @@
     var i = img(key);
     if (!i) return [];
     var f = mk('figure', 'render');
-    f.appendChild(i);
+    if (key === 'appHome') {
+      f.classList.add('render-3d');
+      var w = mk('div', 'win-3d');
+      w.appendChild(mk('span', 'win-edge'));
+      w.appendChild(i);
+      f.appendChild(w);
+    } else {
+      f.appendChild(i);
+    }
     f.dataset.image = key;
     return [comp('image', f)];
   };

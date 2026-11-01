@@ -21,6 +21,7 @@ window.DECK = {
   images: {
     phoneVoice: "assets/renders/v2/phone_voicenotes.webp",
     keycap: "assets/renders/v2/keycap.webp",
+    appHome: "assets/screenshots/swarnik_home.png",
     phoneKeyboard: "assets/renders/v2/phone_keyboard.webp",
     englishVoice: "assets/screenshots/english_voice_google.png",
     nepaliVoice: "assets/screenshots/nepali_voice.png",
@@ -63,7 +64,7 @@ window.DECK = {
       { say: "So we made {app}. You talk the way you talk, and it types the way we chat. It’s a Windows app, and it’s running on this laptop right now.",
         show: { wordmark: "{app}",
                 oneLiner: "A Windows app that turns spoken Nepali and English into Roman Nepali, the way we chat.",
-                image: "keycap" } },
+                image: "appHome" } },
       { say: "You hold one key, you speak, and it types wherever your cursor is. Let’s try it.",
         show: { sequence: ["Hold one key", "Speak", "It types where your cursor is"] } },
       { demo: true,
