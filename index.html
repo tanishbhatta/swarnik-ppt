@@ -1,29 +1,56 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="paper">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pitch deck</title>
 <link rel="stylesheet" href="css/deck.css">
+<script>
+  /* Catch a broken content.js before it loads, so we can show a plain message instead of a blank page. */
+  window.__contentError = null;
+  window.addEventListener('error', function (e) {
+    if (window.DECK) return;
+    var file = String(e.filename || '');
+    if (!file || /content\.js/i.test(file)) window.__contentError = { line: e.lineno || 0, message: e.message || '' };
+  }, true);
+</script>
 </head>
 <body>
 <div id="viewport">
-  <div id="stage">
-    <canvas id="seq" width="1920" height="1080"></canvas>
+  <div id="stage" aria-live="off">
+    <header id="hdr">
+      <div class="hdr-l"><span class="hdr-num t-label"></span><span class="hdr-sec t-label"></span></div>
+      <div class="hdr-r"><span id="timer" class="t-label" hidden>0:00</span><span class="hdr-brand t-label"></span></div>
+    </header>
     <div id="slides"></div>
-    <div id="blackout"></div>
-    <div id="loader"><i></i></div>
-    <div id="timer">0:00</div>
-    <div id="help" class="overlay"></div>
-    <div id="overview" class="overlay"></div>
+    <footer id="ftr">
+      <div class="ftr-progress"></div>
+      <div class="ftr-folio t-label"></div>
+    </footer>
+    <div id="demo-black" aria-hidden="true"></div>
+    <div id="help" class="overlay" hidden></div>
+    <div id="overview" class="overlay" hidden></div>
   </div>
 </div>
-<div id="video-layer"><video id="video" playsinline preload="none"></video></div>
-<input id="video-pick" type="file" accept="video/*">
+<div id="blackout" aria-hidden="true"></div>
+<div id="video-layer" hidden><video id="video" playsinline preload="none"></video></div>
+<input id="video-pick" type="file" accept="video/*" tabindex="-1" hidden>
+<div id="print-root"></div>
+<div id="load-error" hidden></div>
 
 <script src="content.js"></script>
-<script src="assets/renders/manifest.js"></script>
-<script src="js/sequence.js"></script>
+<script>
+  if (!window.DECK) {
+    var box = document.getElementById('load-error');
+    var err = window.__contentError;
+    box.innerHTML = '<p>content.js didn’t load. Check the last thing you edited for a missing comma or quote.</p>' +
+      (err && err.line ? '<p class="where">The browser stopped at line ' + err.line + ' of content.js' +
+        (err.message && !/^Script error/i.test(err.message) ? ': ' + err.message.replace(/[<>&]/g, '') : '') + '.</p>' : '');
+    box.hidden = false;
+    document.getElementById('viewport').hidden = true;
+  }
+</script>
+<script src="js/components.js"></script>
 <script src="js/deck.js"></script>
 </body>
 </html>

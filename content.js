@@ -1,105 +1,169 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  ALL editable text for the deck lives in this file.
-//  Edit, save, reload index.html. Nothing else needs to change.
-//
-//  appName      – the product name. It is inserted wherever "{app}" appears.
-//  show         – the words that appear on screen for a beat (one string = one line).
-//  say          – the spoken line. Only shown in the presenter window (press P).
-//  numbers      – only real, measured numbers. "" hides it. All "" = no numbers row at all.
-//  showOptional – false skips every beat marked  optional: true.
-// ─────────────────────────────────────────────────────────────────────────────
 window.DECK = {
   appName: "Swarnik",
-  speakers: ["Jebisha", "Tanish"],
-  keycapLegend: "HOLD",          // printed on the 3D keycap (needs a re-render to change, see README)
+  event: "Sci-Pitch 2026",
+  teamName: "",                       // fill in: your team name
+  members: ["Jebisha", "Tanish Bhatta"],
+  school: "Trinity International SS & College",
 
-  showOptional: true,            // false = skip the optional "hidden 'a'" beat on slide 6
+  theme: "paper",                     // "paper" (light, default) or "ink" (dark). Press D to switch live.
+  keycapLegend: "Hold",
 
-  // Only measured numbers from the team's own test files. "" = hidden.
-  numbers: { sentences: "", accuracy: "", seconds: "" },
-  // Labels printed next to each number (slide 6, bottom left), e.g. "120" + "test sentences".
-  numberLabels: { sentences: "test sentences", accuracy: "accuracy on our tests", seconds: "seconds per sentence" },
+  // Only real numbers from your own survey and tests/results. "" = hidden.
+  numbers: {
+    surveyAsked: "",
+    surveyYes: "",
+    sentences: "450",
+    accuracy: "76"
+  },
+
+  demoSentence: "oye asti ko homework pathaidena",
+  // Paste the app's REAL output for the demo sentence (copy it from the app, don't retype).
+  realOutput: {
+    devanagari: "",                   // what the speech model wrote
+    roman: ""                         // what Swarnik typed
+  },
 
   images: {
-    gboard: "assets/screenshots/gboard.png"
+    keycap: "assets/renders/v2/keycap.webp",
+    laptop: "assets/renders/v2/laptop.webp",
+    phoneKeyboard: "assets/renders/v2/phone_keyboard.webp",
+    englishVoice: "assets/screenshots/english_voice_google.png",
+    nepaliVoice: "assets/screenshots/nepali_voice.png",
+    wisprFlow: "assets/screenshots/wispr_flow.png",
+    tiktok: "assets/screenshots/tiktok_comments.png"
   },
-  // Red outline on the broken word, % of the screenshot: { x, y, w, h }. null = no outline.
-  gboardHighlight: null,
-  // Filled in automatically by blender/render_all.py (pixel corners of the phone screen on slide 2).
-  screenCorners: [[1249.05, 127.89], [1625.44, 158.54], [1602.14, 962.53], [1196.57, 926.92]],
-
   backupVideo: "assets/video/backup_demo.mp4",
 
   slides: [
-    { id: "hook", speaker: "Jebisha", beats: [
-      { say: "Every voice note you've ever sent was a message you didn't feel like typing.",
-        show: ["Every voice note", "= a message you didn't type"] },
-      { say: "We type on our phones all day, but typing in Roman Nepali is slow.",
-        show: ["Roman Nepali is slow to type"] },
-      { say: "Ask your phone to write down what you said, and it gets it wrong.",
-        show: ["Ask your phone to write it.", "It gets it wrong."] }
+    { id: "idea", section: "Idea", speaker: "Jebisha", enabled: true, beats: [
+      { say: "Every voice note you’ve ever sent was a message you didn’t feel like typing.",
+        show: { quote: "Every voice note is a message you didn’t feel like typing." } },
+      { say: "We’re Jebisha and Tanish, and this is {app}. You talk the way you talk, and it types the way we chat.",
+        show: { wordmark: "{app}",
+                oneLiner: "A Windows app that turns spoken Nepali and English into Roman Nepali, the way we chat.",
+                team: true, image: "keycap" } }
     ]},
 
-    { id: "problem", speaker: "Jebisha", beats: [
-      { say: "We said this to Gboard: oee asti ko assignment pathaidena.",
-        show: ["We said:", "“oee asti ko assignment pathaidena”"] },
-      { say: "(read the real output flatly) Nepali voice typing writes Devanagari and breaks the English word.",
-        show: ["Nepali voice typing → Devanagari", "English word: broken"] },
-      { say: "English voice typing can't understand us. None of the ones we tried write the way we write.",
-        show: ["English voice typing → can't understand us", "None write the way we write"], highlight: true }
+    { id: "problem", section: "The problem", speaker: "Jebisha", enabled: true, beats: [
+      { say: "Typing Roman Nepali on a phone is slow, so we tried talking instead.",
+        show: { headline: "Voice typing doesn’t write the way we chat." } },
+      { say: "We said one normal sentence: “oye asti ko homework pathaidena.”",
+        show: { label: "We said one normal sentence", quote: "“{demoSentence}”" } },
+      { say: "English voice typing heard “oye ostiko homework what I dinner.” (Wait for the laugh.)",
+        show: { card: { tool: "English voice typing · Google",
+                        output: "oye ostiko homework what I dinner",
+                        wrong: ["ostiko", "what I dinner"],
+                        image: "englishVoice",
+                        verdict: "Can’t understand Nepali" } } },
+      { say: "Nepali voice typing wrote it all in Devanagari, even “homework.”",
+        show: { card: { tool: "Nepali voice typing",
+                        output: "ओइ अस्तिको होमवर्क पठाइदेन",
+                        wrong: ["होमवर्क"],
+                        image: "nepaliVoice",
+                        verdict: "All Devanagari, even “homework”" } } },
+      { say: "And Wispr Flow, one of the best AI voice typing apps, kept “homework” in English, but wrote the rest in Devanagari.",
+        show: { card: { tool: "Wispr Flow · AI voice typing",
+                        output: "ओइ, अस्तिको homework पठाइदे न।",
+                        wrong: [],
+                        image: "wisprFlow",
+                        verdict: "Keeps “homework”, rest in Devanagari" } } },
+      { say: "None of them write the way we actually write.",
+        show: { rows: [ { label: "How we actually write", chat: "{demoSentence}" } ] } }
     ]},
 
-    { id: "who", speaker: "Jebisha", beats: [
-      { say: "And it's not just us. Students in every group chat,",
-        show: ["Students", "every group chat"] },
-      { say: "creators whose scripts are in Roman Nepali,",
-        show: ["Creators", "scripts in Roman Nepali"] },
-      { say: "and people selling online.",
-        show: ["Online shops", "selling in Roman Nepali"] }
+    { id: "solution", section: "Your solution", speaker: "Tanish", enabled: true, beats: [
+      { say: "{app} is a Windows app, and it’s running on this laptop right now.",
+        show: { headline: "{app} is a Windows app.", tag: "Working prototype", image: "laptop" } },
+      { say: "You hold one key, you speak, and it types wherever your cursor is. Let’s try it.",
+        show: { sequence: ["Hold one key", "Speak", "It types where your cursor is"] } },
+      { demo: true,
+        say: "TANISH (Alt+Tab to Instagram): Same sentence. (Hold the key.) “Oye asti ko homework pathaidena.” (Let go.) JEBISHA, while it processes: Your voice doesn’t go anywhere. It’s all happening on this laptop. (Text appears. Two seconds of silence.) JEBISHA: Just like that. TANISH: “Homework” stayed in English, and the rest is exactly how we’d text it. (Alt+Tab back, press Space.)" },
+      { view: "how",
+        say: "After you let go, a free speech model writes what you said in Devanagari. We didn’t build that part.",
+        show: { headline: "How it works",
+                step: { n: "1", title: "Speech model", tag: "Borrowed", devanagari: "{realOutput.devanagari}" } } },
+      { say: "Then our code puts the English words back in English,",
+        show: { step: { n: "2", title: "English words back", tag: "Ours", from: "होमवर्क", to: "homework" } } },
+      { say: "and our rules turn the rest into how we text.",
+        show: { step: { n: "3", title: "Chat spelling", tag: "Ours", typed: "{realOutput.roman}" } } }
     ]},
 
-    { id: "product", speaker: "Tanish", beats: [
-      { say: "So we made {app}. A Windows app, running on this laptop.",
-        show: ["{app}", "Windows app"] },
-      { say: "Hold one key, speak,",
-        show: ["Hold one key. Speak."] },
-      { say: "and it types anywhere. Let's try it.",
-        show: ["It types anywhere."] }
+    { id: "users", section: "Target users", speaker: "Jebisha", enabled: true, beats: [
+      { say: "And it’s not just us. It’s students in every group chat,",
+        show: { headline: "Anyone who writes Nepali in English letters.",
+                column: { title: "Students", sub: "Every group chat", where: "Messenger" } } },
+      { say: "creators who write their scripts in Roman Nepali,",
+        show: { column: { title: "Creators", sub: "Scripts and captions in Roman Nepali", where: "TikTok" } } },
+      { say: "and people selling things online, all over Messenger, Instagram and TikTok.",
+        show: { column: { title: "Online sellers", sub: "Posts and replies in Roman Nepali", where: "Instagram" } } },
+      { needs: "survey",
+        say: "We asked {numbers.surveyAsked} students, and {numbers.surveyYes} of them type Nepali in English letters.",
+        show: { figure: { value: "{numbers.surveyYes} of {numbers.surveyAsked}",
+                          label: "students we asked type Nepali in English letters",
+                          source: "Our survey" } },
+        sayIfEmpty: "Open any Nepali comment section and look at how people write. (Point.) One person writes “cha”, the next one writes “xa”.",
+        showIfEmpty: { comments: {
+          lines: [
+            "Afnai ghar lanu bhayo jasto cha",
+            "passenger xa vanera birsinu vaye jasto xa",
+            "usko pachade passenger car vaney ne birsexa"
+          ],
+          underline: ["cha", "xa"],
+          image: "tiktok",
+          caption: "TikTok comments" } } }
     ]},
 
-    { id: "demo", speaker: "Tanish", black: true, beats: [
-      { say: "Same sentence we gave Gboard. (hold key) “Oee asti ko assignment pathaidena.” (text appears, two seconds of silence) Jebisha: Just like that.",
-        show: [] }
+    { id: "science", section: "Science and innovation", speaker: "Tanish", enabled: true, beats: [
+      { needs: "tests",
+        say: "We tested it on {numbers.sentences} real sentences we actually say, and it got {numbers.accuracy}% of the words right.",
+        show: { headline: "Tested on how we really talk.",
+                figures: [
+                  { value: "{numbers.sentences}", label: "real sentences we actually say" },
+                  { value: "{numbers.accuracy}%", label: "of words right" }
+                ],
+                badge: "No ChatGPT inside" },
+        sayIfEmpty: "We test it on real sentences we actually say, and check every word.",
+        showIfEmpty: { headline: "Tested on how we really talk.", badge: "No ChatGPT inside" } },
+      { enabled: false,
+        say: "The tricky part is that every Nepali consonant hides an ‘a’. Read घर letter by letter and you get ‘gha-ra’, but we say ‘ghar’, so our rules decide when to drop it.",
+        show: { transform: [
+          { devanagari: "घर", caption: "written" },
+          { struck: "gha·ra", caption: "letter by letter" },
+          { typed: "ghar", caption: "how we say it" }
+        ] } }
     ]},
 
-    { id: "how", speaker: "Tanish", beats: [
-      { say: "After you let go of the key, three things happen. One: a free speech model writes what you said in Devanagari.",
-        show: ["1  Speech model → Devanagari"], tag: "borrowed",
-        sample: "ओई अस्ति को असाइनमेन्ट पठाइदेन" },
-      { say: "Two: English words come out in Nepali letters, like this. Our code catches those and puts back “assignment”.",
-        show: ["2  Finds English words → puts them back"], tag: "ours",
-        sample: { from: "असाइनमेन्ट", to: "assignment" } },
-      { say: "Three: our rules change Nepali letters into how we text. छ becomes “xa”.",
-        show: ["3  Rules → how we text"], tag: "ours",
-        sample: "oee asti ko assignment pathaidena" },
-      { say: "One thing we had to figure out: every Nepali letter has a hidden 'a'. घर letter by letter is 'ghara', but we say 'ghar'. So our rules know when to drop it.",
-        show: ["Hidden ‘a’:  घर → ghara → ghar"], optional: true }
-    ], note: "No ChatGPT inside" },
-
-    { id: "next", speaker: "Jebisha", beats: [
-      { say: "{app} works in any app on your laptop.",
-        show: ["Today", "Any app on your laptop"] },
-      { say: "Next is a phone keyboard,",
-        show: ["Next", "Phone keyboard"] },
-      { say: "that learns how you spell, because some of us write xa, some cha, and some chha.",
-        show: ["Learns your spelling", "xa · cha · chha"] }
+    { id: "business", section: "Business model", speaker: "Tanish", enabled: false, beats: [
+      { say: "It’s free for students. It runs on your own laptop, so there are no servers to pay for.",
+        show: { headline: "Free for students.", rows: [
+          { label: "Cost per user", value: "About zero. It runs on your laptop, no servers." },
+          { label: "Price", value: "Free" },
+          { label: "How people find it", value: "College group chats and word of mouth" }
+        ] } }
     ]},
 
-    { id: "close", speaker: "Tanish", beats: [
-      { say: "We didn't ask anyone to change how they write. We made the computer catch up.",
-        show: ["We didn't ask anyone to change how they write.", "We made the computer catch up."] },
-      { say: "(Tanish switches to Notes) Both: Tapai bolnus. {app} lekhxa.",
-        show: ["Tapai bolnus.", "{app} lekhxa."] }
+    { id: "benefits", section: "Potential benefits", speaker: "Jebisha", enabled: true, beats: [
+      { say: "It means typing as fast as you talk,",
+        show: { headline: "Type as fast as you talk.",
+                rows: [ { label: "Students", value: "Your own words, your own spelling" } ],
+                image: "phoneKeyboard" } },
+      { say: "and if typing is hard for you, you can just say it.",
+        show: { rows: [ { label: "If typing is hard for you", value: "Just say it" } ] } },
+      { say: "Next is a phone keyboard that learns how you spell, because some of us write xa, some cha, some chha, and nobody’s actually wrong.",
+        show: { timeline: [
+          { when: "Today", what: "Windows app" },
+          { when: "Next", what: "Phone keyboard" },
+          { when: "Then", what: "Learns your spelling:", typed: "xa · cha · chha" }
+        ] } }
+    ]},
+
+    { id: "close", section: "Conclusion and pitch", speaker: "Tanish", enabled: true, beats: [
+      { say: "Before the final, we want a hundred students to try it and break it.",
+        show: { label: "Next step", headline: "100 students try it and break it, before 22 November." } },
+      { say: "We didn’t ask anyone to change how they write. We made the computer catch up.",
+        show: { statement: "We didn’t ask anyone to change how they write. We made the computer catch up." } },
+      { say: "BOTH: Tapai bolnus. {app} lekhxa. (Hold still for two seconds.) Thank you.",
+        show: { closing: { spoken: "Tapai bolnus.", typed: "{app} lekhxa." }, names: "Jebisha · Tanish" } }
     ]}
   ]
 };
