@@ -442,16 +442,18 @@
     if (chan) { try { chan.postMessage(m); } catch (e) { /* ignore */ } }
     try { localStorage.setItem(CHANNEL + '-state', JSON.stringify(m)); } catch (e) { /* ignore */ }
   }
-  function onCommand(cmd) {
+  var lastCmd = null;
+  function onCommand(cmd, id) {
+    if (id != null) { if (id === lastCmd) return; lastCmd = id; }
     if (cmd === 'next') next();
     else if (cmd === 'prev') prev();
     else if (cmd === 'hello') broadcast();
     else if (cmd === 'timer-reset') resetTimer();
   }
-  if (chan) chan.onmessage = function (e) { if (e.data && e.data.type === 'cmd') onCommand(e.data.cmd); };
+  if (chan) chan.onmessage = function (e) { if (e.data && e.data.type === 'cmd') onCommand(e.data.cmd, e.data.t); };
   window.addEventListener('storage', function (e) {
     if (e.key === CHANNEL + '-cmd' && e.newValue) {
-      try { onCommand(JSON.parse(e.newValue).cmd); } catch (err) { /* ignore */ }
+      try { var m = JSON.parse(e.newValue); onCommand(m.cmd, m.t); } catch (err) { /* ignore */ }
     }
   });
   function openPresenter() {

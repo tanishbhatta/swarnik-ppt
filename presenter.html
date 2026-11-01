@@ -76,7 +76,7 @@
   }
   setInterval(tick, 250);
   function send(cmd) {
-    var m = { type: 'cmd', cmd: cmd, t: Date.now() };
+    var m = { type: 'cmd', cmd: cmd, t: Date.now() + '-' + Math.random().toString(36).slice(2) };
     if (chan) { try { chan.postMessage(m); } catch (e) { /* ignore */ } }
     try { localStorage.setItem(CHANNEL + '-cmd', JSON.stringify(m)); } catch (e) { /* ignore */ }
   }

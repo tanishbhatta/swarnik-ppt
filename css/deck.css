@@ -279,14 +279,14 @@ img { display: block; }
 .fig + .fig::after { content: ""; position: absolute; left: -16px; top: 8px; bottom: 0; width: 1px; background: var(--rule); }
 .fig .fig-label { margin-top: 16px; color: var(--text-2); max-width: var(--w3); }
 .slide[data-id="science"] .r-badge { bottom: 136px; }
-.slide[data-id="science"] .r-transform { top: 640px; }
-.transform { display: flex; align-items: flex-start; gap: 40px; }
+.slide[data-id="science"] .r-transform { top: 568px; }
+.transform { display: flex; align-items: baseline; gap: 48px; }
 .tf-cell { display: flex; flex-direction: column; gap: 16px; }
 .tf-word { white-space: nowrap; }
-.tf-dv { font-family: var(--dev); font-weight: 600; font-size: 200px; line-height: 1; padding-top: 16px; margin-top: -64px; }
+.tf-dv { font-family: var(--dev); font-weight: 600; font-size: 184px; line-height: 1.5; }
 .tf-dv .dv { font-size: 1em; font-weight: 600; }
 .tf-struck { color: var(--text-2); text-decoration: line-through var(--accent); text-decoration-thickness: 4px; }
-.tf-arrow { color: var(--text-2); font-size: 56px; padding-top: 40px; }
+.tf-arrow { color: var(--text-2); font-size: 56px; line-height: 1; }
 .tf-cap { color: var(--text-2); }
 
 /* ── 06 · Business model ──────────────────────────────────────────────────── */

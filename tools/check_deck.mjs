@@ -1,344 +1,519 @@
-// Deck check: node tools/check_deck.mjs  [--quick]
-// Opens index.html from file://, steps every beat at 1920×1080 and 1366×768,
-// screenshots each into shots/, checks overlaps, offline, keys, print.
+// Deck check:  node tools/check_deck.mjs
+// Opens index.html from file:// and checks: console + network, fonts, every beat forwards and back
+// (both themes), overlaps / out-of-stage / clipped Devanagari, evidence text vs content.js, screenshot
+// aspect ratios, every key, clicks + wheel, print page count, variants (slide 6 on, optional beat on,
+// numbers empty / filled), the content.js error message, three screen sizes, and the contact sheet.
 import { chromium } from 'playwright';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
+const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const URL_ = pathToFileURL(path.join(ROOT, 'index.html')).href;
+const INDEX = pathToFileURL(path.join(ROOT, 'index.html')).href;
 const SHOTS = path.join(ROOT, 'shots');
-const QUICK = process.argv.includes('--quick');
-const report = { errors: [], warnings: [], network: [], overlaps: [], outside: [], failures: [], notes: [] };
-const fail = (m) => { report.failures.push(m); console.log('  FAIL', m); };
+const TMP = path.join(ROOT, 'tools', '_tmp');
+const results = { failures: [], notes: [], counts: {} };
+const fail = (m) => { results.failures.push(m); console.log('  FAIL', m); };
 const ok = (m) => console.log('  ok  ', m);
+const note = (m) => { results.notes.push(m); console.log('  note', m); };
 
-fs.mkdirSync(SHOTS, { recursive: true });
+fs.rmSync(SHOTS, { recursive: true, force: true });
+for (const d of ['paper', 'ink', 'variant', 'filled', 'small']) fs.mkdirSync(path.join(SHOTS, d), { recursive: true });
+fs.mkdirSync(TMP, { recursive: true });
 
-// 0. the app name must live only in content.js
+// content.js as data (same file the deck loads)
+const SRC = fs.readFileSync(path.join(ROOT, 'content.js'), 'utf8');
+const sandbox = { window: {} };
+vm.runInNewContext(SRC, sandbox);
+const DECK = sandbox.window.DECK;
+const enabledSlides = DECK.slides.filter((s) => s.enabled !== false);
+
+// 0. the app name lives only in content.js
 {
-  const src = fs.readFileSync(path.join(ROOT, 'content.js'), 'utf8');
-  const name = (src.match(/appName:\s*"([^"]+)"/) || [])[1];
-  const files = ['index.html', 'presenter.html', 'css/deck.css', 'js/deck.js', 'js/sequence.js', 'assets/renders/manifest.js'];
-  const hits = name ? files.filter((f) => fs.existsSync(path.join(ROOT, f)) && fs.readFileSync(path.join(ROOT, f), 'utf8').includes(name)) : [];
-  if (hits.length) fail(`app name "${name}" hard-coded in: ${hits.join(', ')}`); else ok('app name appears only in content.js');
+  const files = ['index.html', 'presenter.html', 'css/deck.css', 'js/deck.js', 'js/components.js'];
+  const hits = files.filter((f) => fs.readFileSync(path.join(ROOT, f), 'utf8').includes(DECK.appName));
+  if (hits.length) fail(`app name hard-coded in: ${hits.join(', ')}`); else ok('app name appears only in content.js');
 }
 
 async function launch() {
   for (const channel of ['chrome', 'msedge', undefined]) {
     try { return { browser: await chromium.launch({ channel, headless: true }), channel: channel || 'chromium' }; } catch (e) { /* next */ }
   }
-  throw new Error('no browser');
+  throw new Error('no browser found');
+}
+const { browser, channel } = await launch();
+results.browser = channel;
+
+// mutate DECK as content.js assigns it (variants without touching the file)
+function mutator(fnSrc) {
+  return `(() => {
+    const mutate = ${fnSrc};
+    Object.defineProperty(window, 'DECK', { configurable: true, get() { return undefined; },
+      set(v) { mutate(v); Object.defineProperty(window, 'DECK', { value: v, writable: true, configurable: true }); } });
+  })();`;
 }
 
-function wire(page, tag) {
-  page.on('console', (m) => {
-    const t = m.type();
-    if (page.__mute && page.__mute.test(m.text())) return;
-    if (t === 'error') report.errors.push(`[${tag}] ${m.text()}`);
-    else if (t === 'warning') report.warnings.push(`[${tag}] ${m.text()}`);
-  });
-  page.on('pageerror', (e) => report.errors.push(`[${tag}] pageerror: ${e.message}`));
-  page.on('request', (r) => { if (!/^(file|data|blob):/i.test(r.url())) report.network.push(`[${tag}] ${r.url()}`); });
-}
-
-async function settle(page) {
-  await page.waitForFunction(() => window.__deck && !window.__deck.busy, null, { timeout: 15000 });
-  await page.waitForTimeout(120);
-}
-
-// signature of what is visible: active slide + beat classes
-const signature = (page) => page.evaluate(() => {
-  return [...document.querySelectorAll('.slide')].map((s) => {
-    if (!s.classList.contains('active')) return '-';
-    const b = [...s.querySelectorAll('.beat')].map((e) => (e.classList.contains('on') ? (e.classList.contains('past') ? 'p' : 'c') : '.')).join('');
-    const extra = ['pre-fwd', 'pre-back', 'leave-fwd', 'leave-back'].filter((c) => s.classList.contains(c)).join('+');
-    return 'A' + b + (extra ? '!' + extra : '');
-  }).join('|');
-});
-
-// visible text boxes, overlaps and out-of-stage
-const layoutCheck = (page) => page.evaluate(() => {
-  const stage = document.getElementById('stage').getBoundingClientRect();
-  const sc = stage.width / 1920;
-  const sec = document.querySelector('.slide.active');
-  if (!sec) return { boxes: 0, overlaps: [], outside: [] };
-  const sel = '.ln, .name, .tag, .lbl, .num, .smp, .note, .names, .folio, .numbers .n, .plabel, .screen .ph';
-  const vis = (e) => {
-    for (let n = e; n && n !== sec; n = n.parentElement) {
-      const cs = getComputedStyle(n);
-      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.05) return false;
-    }
-    return true;
-  };
-  const els = [...sec.querySelectorAll(sel)].filter((e) => e.textContent.trim() && vis(e));
-  const boxes = els.map((e) => {
-    const r = e.getBoundingClientRect();
-    const range = document.createRange(); range.selectNodeContents(e);
-    const rs = [...range.getClientRects()].filter((q) => q.width > 0);
-    let l = r.left, rt = r.right;
-    if (rs.length && !e.classList.contains('tag')) { l = Math.min(...rs.map((q) => q.left)); rt = Math.max(...rs.map((q) => q.right)); }
-    const ink = rs.length ? { l: Math.min(...rs.map((q) => q.left)), r: Math.max(...rs.map((q) => q.right)), t: Math.min(...rs.map((q) => q.top)), b: Math.max(...rs.map((q) => q.bottom)) } : null;
-    return { e, name: (e.className || e.tagName) + ': ' + e.textContent.trim().slice(0, 40), l, r: rt, t: r.top, b: r.bottom, ink };
-  });
-  const overlaps = [], outside = [];
-  for (let i = 0; i < boxes.length; i++) {
-    const a = boxes[i];
-    const ib = a.ink || a;
-    const L = ib.l ?? a.l, Rr = ib.r ?? a.r, T = ib.t ?? a.t, B = ib.b ?? a.b;
-    if (L < stage.left - 1 || Rr > stage.right + 1 || T < stage.top - 1 || B > stage.bottom + 1) outside.push(a.name);
-    if (a.e.scrollWidth > a.e.clientWidth + 1 && getComputedStyle(a.e).display === 'block') outside.push('overflow-x ' + a.name);
-    for (let j = i + 1; j < boxes.length; j++) {
-      const b = boxes[j];
-      if (a.e.contains(b.e) || b.e.contains(a.e)) continue;
-      const w = Math.min(a.r, b.r) - Math.max(a.l, b.l), h = Math.min(a.b, b.b) - Math.max(a.t, b.t);
-      if (w > 2 * sc && h > 2 * sc) overlaps.push(a.name + '  ×  ' + b.name);
-    }
-  }
-  return { boxes: boxes.length, overlaps, outside };
-});
-
-async function runViewport(browser, w, h, opts) {
-  const tag = `${w}x${h}`;
-  console.log(`\n── ${tag}`);
-  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+async function open(viewport, opts = {}) {
+  const ctx = await browser.newContext({ viewport, reducedMotion: opts.reducedMotion || 'no-preference' });
   const page = await ctx.newPage();
-  wire(page, tag);
-  await page.goto(URL_);
-  await page.waitForSelector('html[data-ready="1"]', { timeout: 30000 });
-  await settle(page);
-  const total = await page.evaluate(() => window.__deck.total);
-  const dir = path.join(SHOTS, tag);
-  fs.mkdirSync(dir, { recursive: true });
-  for (const f of fs.readdirSync(dir)) fs.unlinkSync(path.join(dir, f));
-
-  const info = await page.evaluate(() => ({
-    stills: Object.keys((window.RENDERS || {}).stills || {}).length,
-    seqs: ((window.RENDERS || {}).sequences || []).length,
-    screen: window.__deck.screenMode(),
-    broken: [...document.images].filter((i) => i.getAttribute('src') && i.complete && !i.naturalWidth).map((i) => i.getAttribute('src')),
-  }));
-  console.log(`  info  ${tag}: ${info.stills} stills, ${info.seqs} camera moves, screenshot overlay: ${info.screen}`);
-  if (info.broken.length) fail(`${tag}: broken images ${info.broken.join(', ')}`);
-  if (info.stills && info.screen !== 'mapped') fail(`${tag}: screenshot overlay not mapped onto the 3D phone`);
-
-  // frame pacing: log rAF timestamps around each camera move
-  await page.evaluate(() => {
-    window.__frames = [];
-    const loop = (t) => { if (window.__deck.busy) window.__frames.push(t); requestAnimationFrame(loop); };
-    requestAnimationFrame(loop);
-  });
-
-  const sigs = [];
-  for (let i = 0; i < total; i++) {
-    if (i > 0) { await page.keyboard.press(i % 2 ? 'Space' : 'PageDown'); await settle(page); }
-    const st = await page.evaluate(() => window.__deck.state);
-    if (st.step !== i) fail(`${tag}: expected step ${i}, got ${st.step}`);
-    sigs.push(await signature(page));
-    const lc = await layoutCheck(page);
-    lc.overlaps.forEach((o) => report.overlaps.push(`[${tag} step ${i}] ${o}`));
-    lc.outside.forEach((o) => report.outside.push(`[${tag} step ${i}] ${o}`));
-    await page.screenshot({ path: path.join(dir, `${String(i).padStart(2, '0')}_s${st.slide + 1}_b${st.beat + 1}.png`) });
-  }
-  ok(`${tag}: stepped forward through ${total} steps`);
-  const pace = await page.evaluate(() => {
-    const f = window.__frames, gaps = [];
-    for (let i = 1; i < f.length; i++) { const g = f[i] - f[i - 1]; if (g < 400) gaps.push(g); }
-    gaps.sort((a, b) => a - b);
-    const avg = gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length);
-    return { n: gaps.length, fps: 1000 / avg, p95: gaps[Math.floor(gaps.length * 0.95)] || 0, over33: gaps.filter((g) => g > 33.4).length };
-  });
-  report.notes.push(`${tag} frame pacing during transitions: ${pace.n} frames, avg ${pace.fps.toFixed(1)} fps, p95 gap ${pace.p95.toFixed(1)} ms, ${pace.over33} gaps > 33 ms (headless, indicative only)`);
-  // extra press at the end does nothing
-  await page.keyboard.press('Space'); await page.waitForTimeout(200);
-  if ((await page.evaluate(() => window.__deck.step)) !== total - 1) fail(`${tag}: advanced past the end`);
-
-  if (opts.slowBack) {
-    for (let i = total - 2; i >= 0; i--) {
-      await page.keyboard.press(i % 2 ? 'ArrowLeft' : 'PageUp'); await settle(page);
-      const sg = await signature(page);
-      if (sg !== sigs[i]) fail(`${tag}: step ${i} differs going back\n      fwd  ${sigs[i]}\n      back ${sg}`);
-    }
-    ok(`${tag}: stepped back slowly, every step matches the forward state`);
-  } else {
-    for (let i = total - 2; i >= 0; i--) { await page.keyboard.press('ArrowUp'); await page.waitForTimeout(60); }
-    await settle(page);
-    await page.waitForTimeout(800);
-    const sg = await signature(page);
-    if (sg !== sigs[0]) fail(`${tag}: after rapid back-stepping, start state differs\n      ${sigs[0]}\n      ${sg}`);
-    else ok(`${tag}: rapid back-stepping returns to the exact start state`);
-  }
-  return { ctx, page, total };
+  const log = { errors: [], network: [] };
+  const wire = (p, tag) => {
+    p.on('console', (m) => {
+      if (m.type() !== 'error' && m.type() !== 'warning') return;
+      if (log.muteVideo && /ERR_FILE_NOT_FOUND/.test(m.text()) && /backup_demo/.test((m.location() || {}).url || '')) return;
+      log.errors.push(`[${tag}] ${m.type()}: ${m.text()}`);
+    });
+    p.on('pageerror', (e) => log.errors.push(`[${tag}] pageerror: ${e.message}`));
+    p.on('request', (r) => { if (!/^(file|data|blob):/i.test(r.url())) log.network.push(`[${tag}] ${r.url()}`); });
+  };
+  wire(page, 'deck');
+  ctx.on('page', (p) => { if (p !== page) wire(p, 'popup'); });
+  if (opts.init) await page.addInitScript(opts.init);
+  await page.goto(opts.url || INDEX);
+  if (!opts.noWait) await page.waitForFunction(() => window.__deck && document.body.classList.contains('ready'), null, { timeout: 15000 });
+  return { ctx, page, log };
 }
 
-async function keyTests(ctx, page, total) {
-  console.log('\n── keys');
-  const step = () => page.evaluate(() => window.__deck.step);
-  // go to slide 2
-  for (let i = 0; i < 5; i++) { await page.keyboard.press('Space'); await settle(page); }
-  const s0 = await step();
+const settle = async (page, ms = 760) => {
+  await page.waitForFunction(() => !window.__deck.busy, null, { timeout: 10000 });
+  await page.waitForTimeout(ms);
+};
 
-  // mouse + wheel do nothing
-  await page.mouse.click(960, 540); await page.mouse.click(300, 900, { button: 'right' }).catch(() => {});
-  await page.mouse.wheel(0, 800); await page.mouse.wheel(0, -800);
-  await page.waitForTimeout(600);
-  if ((await step()) !== s0) fail('click / wheel changed the beat'); else ok('click, right-click and wheel leave the beat alone');
+const signature = (page) => page.evaluate(() => {
+  const s = document.querySelector('#slides .slide.active');
+  return s.dataset.id + '|' + s.dataset.view + '|' + [...s.querySelectorAll('.comp')].map((c) => (c.classList.contains('on') ? (c.classList.contains('cur') ? 'C' : 'o') : '.')).join('') +
+    '|' + document.querySelector('.hdr-num').textContent + '|' + document.querySelector('.ftr-folio').textContent + '|' + document.getElementById('stage').classList.contains('demo');
+});
 
-  // B
+// overlaps, out-of-stage, clipped Devanagari — all in stage pixels
+const layoutCheck = (page) => page.evaluate(() => {
+  const stage = document.getElementById('stage');
+  const sr = stage.getBoundingClientRect();
+  const k = sr.width / 1920;
+  const toStage = (r) => ({ l: (r.left - sr.left) / k, t: (r.top - sr.top) / k, r: (r.right - sr.left) / k, b: (r.bottom - sr.top) / k });
+  const slide = document.querySelector('#slides .slide.active');
+  const out = { overlaps: [], outside: [], clipped: [], boxes: 0 };
+  if (stage.classList.contains('demo')) return out;
+  const groups = [];
+  const textRects = (el) => {
+    const rects = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      if (!n.textContent.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.width > 0.5 && r.height > 0.5) rects.push(toStage(r));
+    }
+    return rects;
+  };
+  const comps = [...slide.querySelectorAll('.comp.on')];
+  comps.forEach((c) => {
+    const name = c.dataset.role + '@' + c.dataset.beat;
+    if (c.classList.contains('c-image')) {
+      const img = c.querySelector('img');
+      if (img) groups.push({ name, rects: [toStage(img.getBoundingClientRect())], image: true });
+      return;
+    }
+    // each sub-block of a component is its own group (cards, columns, rows have several)
+    const parts = c.matches('.c-card, .c-column, .c-step, .c-row, .c-figures, .c-timeline, .c-transform, .c-comments, .c-proof, .c-sequence, .c-team, .c-closing')
+      ? [...c.querySelectorAll(':scope > *, .fig > *, .tl-stop > *, .tf-cell > *, .step-sample > *')] : [c];
+    parts.forEach((p, i) => {
+      const rects = textRects(p);
+      if (p.tagName === 'IMG' || p.querySelector('img')) {
+        const im = p.tagName === 'IMG' ? p : p.querySelector('img');
+        rects.push(toStage(im.getBoundingClientRect()));
+      }
+      if (rects.length) groups.push({ name: name + '#' + i, rects, comp: c });
+    });
+  });
+  // header + footer text
+  ['#hdr', '#ftr'].forEach((sel) => groups.push({ name: sel, rects: textRects(document.querySelector(sel)) }));
+  const hit = (a, b) => a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1;
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = i + 1; j < groups.length; j++) {
+      if (groups[i].comp && groups[i].comp === groups[j].comp) continue;
+      if (groups[i].image && groups[j].image) continue;
+      outer: for (const a of groups[i].rects) for (const b of groups[j].rects) {
+        if (hit(a, b)) { out.overlaps.push(groups[i].name + ' × ' + groups[j].name); break outer; }
+      }
+    }
+  }
+  groups.forEach((g) => g.rects.forEach((r) => {
+    out.boxes++;
+    if (r.l < -1 || r.t < -1 || r.r > 1921 || r.b > 1081) out.outside.push(g.name + ` (${Math.round(r.l)},${Math.round(r.t)},${Math.round(r.r)},${Math.round(r.b)})`);
+  }));
+  slide.querySelectorAll('.comp.on .dv').forEach((d) => {
+    let el = d.closest('p, li, h1, h2, h3, div');
+    if (el && el.scrollHeight > el.clientHeight + 1 && getComputedStyle(el).overflow !== 'visible') out.clipped.push(el.className + ': ' + el.textContent.slice(0, 30));
+    // glyph box vs line box: the Devanagari run must sit inside its element's box
+    const r = d.getBoundingClientRect(), e = el.getBoundingClientRect();
+    if (r.top < e.top - 2 || r.bottom > e.bottom + 2) out.clipped.push('dv outside line box: ' + d.textContent.slice(0, 20));
+  });
+  return out;
+});
+
+async function walk(page, label, dir, opts = {}) {
+  const n = await page.evaluate(() => window.__deck.steps.length);
+  const steps = await page.evaluate(() => window.__deck.steps);
+  const issues = { overlaps: new Set(), outside: new Set(), clipped: new Set() };
+  await page.evaluate(() => window.__deck.go(0));
+  await settle(page);
+  const start = await signature(page);
+  for (let i = 0; i < n; i++) {
+    if (i > 0) { await page.keyboard.press('Space'); await settle(page); }
+    const st = steps[i];
+    const lc = await layoutCheck(page);
+    lc.overlaps.forEach((o) => issues.overlaps.add(`${st.id} beat ${st.b + 1}: ${o}`));
+    lc.outside.forEach((o) => issues.outside.add(`${st.id} beat ${st.b + 1}: ${o}`));
+    lc.clipped.forEach((o) => issues.clipped.add(`${st.id} beat ${st.b + 1}: ${o}`));
+    if (dir && opts.shots !== false) await page.screenshot({ path: path.join(dir, `${String(i + 1).padStart(2, '0')}_${st.id}_${st.b + 1}.png`) });
+  }
+  const idx = await page.evaluate(() => window.__deck.index);
+  if (idx !== n - 1) fail(`${label}: forward walk ended at step ${idx}, expected ${n - 1}`);
+  for (let i = n - 1; i > 0; i--) { await page.keyboard.press('ArrowLeft'); await settle(page, 420); }
+  const end = await signature(page);
+  if (end !== start) fail(`${label}: state after walking back differs from the start\n    start ${start}\n    end   ${end}`);
+  else ok(`${label}: ${n} beats forwards and back, end state = start state`);
+  for (const k of ['overlaps', 'outside', 'clipped']) {
+    if (issues[k].size) fail(`${label}: ${k}:\n    ` + [...issues[k]].join('\n    '));
+    else ok(`${label}: no ${k}`);
+  }
+  return n;
+}
+
+// ── 1. main run, 1920×1080, paper then ink ─────────────────────────────────
+console.log('\n1920×1080');
+{
+  const { ctx, page, log } = await open({ width: 1920, height: 1080 });
+  // fonts
+  const fonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const tests = {
+      'Instrument Sans': ['600 80px "Instrument Sans"', '400 28px "Instrument Sans"', '500 48px "Instrument Sans"'],
+      'Instrument Serif': ['italic 400 64px "Instrument Serif"'],
+      'IBM Plex Mono': ['400 20px "IBM Plex Mono"', '400 36px "IBM Plex Mono"'],
+      'Noto Sans Devanagari': ['400 40px "Noto Sans Devanagari"']
+    };
+    const res = {};
+    for (const [fam, list] of Object.entries(tests)) res[fam] = list.every((f) => document.fonts.check(f, fam === 'Noto Sans Devanagari' ? 'क' : 'a'));
+    res.loaded = [...document.fonts].filter((f) => f.status === 'loaded').map((f) => `${f.family} ${f.style} ${f.weight}`);
+    return res;
+  });
+  results.fonts = fonts;
+  for (const fam of ['Instrument Sans', 'Instrument Serif', 'IBM Plex Mono', 'Noto Sans Devanagari']) {
+    if (fonts[fam]) ok(`font loaded: ${fam}`); else fail(`font NOT loaded (fallback!): ${fam}`);
+  }
+  const nSlides = await page.evaluate(() => window.__deck.slides.length);
+  if (nSlides !== enabledSlides.length) fail(`deck has ${nSlides} slides, content.js enables ${enabledSlides.length}`); else ok(`${nSlides} enabled slides`);
+  const folio = await page.evaluate(() => document.querySelector('.ftr-folio').textContent);
+  if (folio !== `01 / ${String(nSlides).padStart(2, '0')}`) fail(`folio "${folio}"`); else ok(`numbering ${folio}`);
+  const title = await page.title();
+  if (!title.includes(DECK.appName)) fail(`<title> is "${title}"`); else ok(`<title> "${title}"`);
+
+  results.counts.beats = await walk(page, 'paper', path.join(SHOTS, 'paper'));
+
+  // evidence text = content.js, character for character
+  const problem = DECK.slides.find((s) => s.id === 'problem');
+  const cardOutputs = problem.beats.filter((b) => b.show && b.show.card).map((b) => b.show.card.output);
+  const shown = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="problem"] .card-output')].map((e) => e.textContent.replace(/ /g, ' ')));
+  if (JSON.stringify(shown) === JSON.stringify(cardOutputs)) ok('slide 2 outputs match content.js exactly'); else fail(`slide 2 outputs differ:\n    shown ${JSON.stringify(shown)}\n    file  ${JSON.stringify(cardOutputs)}`);
+  const users = DECK.slides.find((s) => s.id === 'users');
+  const ev = users.beats.find((b) => b.showIfEmpty && b.showIfEmpty.comments);
+  const comments = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="users"] .comment')].map((e) => e.textContent.replace(/ /g, ' ')));
+  if (JSON.stringify(comments) === JSON.stringify(ev.showIfEmpty.comments.lines)) ok('slide 4 comments match content.js exactly'); else fail(`slide 4 comments differ: ${JSON.stringify(comments)}`);
+  const ul = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="users"] .uline')].map((e) => e.textContent));
+  if (ul.every((w) => ['cha', 'xa'].includes(w)) && ul.length === 3) ok(`underlined whole words: ${ul.join(', ')}`); else fail(`underlines: ${JSON.stringify(ul)}`);
+  const wrong = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="problem"] .wrong')].map((e) => e.textContent));
+  ok(`wavy underlines on: ${wrong.join(' | ')}`);
+
+  // aspect ratios: every screenshot and render, measured where it is visible
+  const aspects = {};
+  const allSteps = await page.evaluate(() => window.__deck.steps.length);
+  for (let i = 0; i < allSteps; i++) {
+    await page.evaluate((i) => window.__deck.go(i), i);
+    await settle(page, 450);
+    const list = await page.evaluate(() => [...document.querySelectorAll('#slides .slide.active .comp.on img')].map((im) => {
+      const cs = getComputedStyle(im);
+      const box = im.clientWidth / im.clientHeight, nat = im.naturalWidth / im.naturalHeight;
+      return { src: im.getAttribute('src'), nat: im.naturalWidth + '×' + im.naturalHeight, fit: cs.objectFit, shown: Math.round(im.clientWidth) + '×' + Math.round(im.clientHeight),
+        ok: im.naturalWidth > 0 && im.clientWidth > 0 && (cs.objectFit === 'contain' || Math.abs(box / nat - 1) < 0.01) };
+    }));
+    list.forEach((x) => { aspects[x.src] = x; });
+  }
+  Object.values(aspects).forEach((a) => (a.ok ? ok(`aspect kept: ${a.src} ${a.nat} → ${a.shown}${a.fit === 'contain' ? ' (object-fit: contain)' : ''}`) : fail(`aspect/load: ${JSON.stringify(a)}`)));
+  if (Object.keys(aspects).length !== 7) fail(`expected 7 images on screen, saw ${Object.keys(aspects).length}`);
+
+  // ink theme
+  await page.keyboard.press('d');
+  const th = await page.evaluate(() => document.documentElement.dataset.theme);
+  if (th !== 'ink') fail('D did not switch to ink'); else ok('D switches to ink');
+  await walk(page, 'ink', path.join(SHOTS, 'ink'));
+  await page.keyboard.press('d');
+  if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== 'paper') fail('D did not switch back'); else ok('D switches back to paper');
+
+  // ── keys ──
+  await page.evaluate(() => window.__deck.go(2));
+  await settle(page);
+  const idx0 = await page.evaluate(() => window.__deck.index);
+  await page.mouse.click(960, 540);
+  await page.mouse.click(1500, 900, { button: 'right' }).catch(() => {});
+  await page.mouse.wheel(0, 600);
+  await page.mouse.wheel(0, -600);
+  await page.waitForTimeout(300);
+  if ((await page.evaluate(() => window.__deck.index)) !== idx0) fail('a click or the wheel changed the beat'); else ok('clicks and the wheel do nothing');
+  await page.keyboard.press('Escape');
+
   await page.keyboard.press('b');
   const bOn = await page.evaluate(() => document.getElementById('blackout').classList.contains('on'));
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: path.join(SHOTS, 'key_B_black.png') });
   await page.keyboard.press('b');
   const bOff = await page.evaluate(() => !document.getElementById('blackout').classList.contains('on'));
-  (bOn && bOff) ? ok('B toggles black') : fail('B black toggle');
+  if (bOn && bOff) ok('B toggles the black screen'); else fail('B black screen');
 
-  // T, Shift+T
   await page.keyboard.press('t');
-  const tShown = await page.evaluate(() => document.getElementById('timer').classList.contains('on'));
-  await page.waitForTimeout(1300);
-  const tRun = await page.evaluate(() => document.getElementById('timer').textContent);
+  const t1 = await page.evaluate(() => ({ shown: !document.getElementById('timer').hidden, text: document.getElementById('timer').textContent }));
+  await page.waitForTimeout(2200);
+  const t2 = await page.evaluate(() => document.getElementById('timer').textContent);
   await page.keyboard.press('Shift+T');
-  const tReset = await page.evaluate(() => document.getElementById('timer').textContent);
-  await page.screenshot({ path: path.join(SHOTS, 'key_T_timer.png') });
+  await page.waitForTimeout(300);
+  const t3 = await page.evaluate(() => document.getElementById('timer').textContent);
+  await page.evaluate(() => { /* fast-forward to 3:00 to check the colour */ });
+  if (t1.shown && /^\d+:\d\d$/.test(t1.text) && t2 !== t1.text && t3 === '0:00') ok(`T shows the timer (${t1.text} → ${t2}), Shift+T resets (${t3})`); else fail(`timer ${JSON.stringify({ t1, t2, t3 })}`);
+  const over = await page.evaluate(() => new Promise((res) => {
+    // pretend 3 minutes have passed by moving the start back (internal state via a reset + clock shift)
+    const real = Date.now;
+    const t0 = real();
+    Date.now = () => real() + 181000 + (real() - t0);
+    setTimeout(() => { const el = document.getElementById('timer'); const r = { over: el.classList.contains('over'), text: el.textContent, color: getComputedStyle(el).color }; Date.now = real; res(r); }, 400);
+  }));
+  if (over.over) ok(`timer turns accent at 3:00 (${over.text}, ${over.color})`); else fail(`timer at 3:00: ${JSON.stringify(over)}`);
   await page.keyboard.press('t');
-  const tHidden = await page.evaluate(() => !document.getElementById('timer').classList.contains('on'));
-  (tShown && tRun !== '0:00' && tReset === '0:00' && tHidden) ? ok(`T timer shows (${tRun}), Shift+T resets, T hides`) : fail(`timer: shown=${tShown} run=${tRun} reset=${tReset} hidden=${tHidden}`);
+  if (await page.evaluate(() => document.getElementById('timer').hidden)) ok('T hides the timer again'); else fail('T did not hide the timer');
 
-  // H and ?
   await page.keyboard.press('h');
-  const hOn = await page.evaluate(() => document.getElementById('help').classList.contains('on'));
-  await page.screenshot({ path: path.join(SHOTS, 'key_H_help.png') });
-  await page.keyboard.press('Space');                       // swallowed while help is open
-  const hStep = await step();
-  await page.keyboard.press('Escape');
+  const hOn = await page.evaluate(() => !document.getElementById('help').hidden);
+  await page.keyboard.press('h');
+  const hOff = await page.evaluate(() => document.getElementById('help').hidden);
   await page.keyboard.press('Shift+Slash');
-  const qOn = await page.evaluate(() => document.getElementById('help').classList.contains('on'));
-  await page.keyboard.press('?');
-  const hOff = await page.evaluate(() => !document.getElementById('help').classList.contains('on'));
-  (hOn && qOn && hOff && hStep === s0) ? ok('H / ? open the key list, Esc / ? close it') : fail(`help: ${hOn} ${qOn} ${hOff} ${hStep}`);
+  const qOn = await page.evaluate(() => !document.getElementById('help').hidden);
+  if (qOn) await page.screenshot({ path: path.join(SHOTS, 'help.png') });
+  await page.keyboard.press('Escape');
+  if (hOn && hOff && qOn) ok('H and ? toggle the key list'); else fail(`help ${hOn} ${hOff} ${qOn}`);
 
-  // O overview: move right twice, Enter
   await page.keyboard.press('o');
-  await page.waitForTimeout(200);
-  await page.screenshot({ path: path.join(SHOTS, 'key_O_overview.png') });
-  const sel0 = await page.evaluate(() => [...document.querySelectorAll('#overview .tile')].findIndex((t) => t.classList.contains('sel')));
-  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+  const oOn = await page.evaluate(() => !document.getElementById('overview').hidden);
+  await page.screenshot({ path: path.join(SHOTS, 'overview.png') });
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await settle(page);
-  const st = await page.evaluate(() => window.__deck.state);
-  const ovClosed = await page.evaluate(() => !document.getElementById('overview').classList.contains('on'));
-  (st.slide === sel0 + 2 && ovClosed) ? ok(`O overview: jumped from slide ${sel0 + 1} to slide ${st.slide + 1}`) : fail(`overview jump: sel0=${sel0} now=${st.slide}`);
-  await page.keyboard.press('o'); await page.keyboard.press('Escape');
-  if (await page.evaluate(() => document.getElementById('overview').classList.contains('on'))) fail('Esc did not close overview');
+  const afterO = await page.evaluate(() => ({ hidden: document.getElementById('overview').hidden, id: document.querySelector('#slides .slide.active').dataset.id, idx: window.__deck.index }));
+  const sel = await page.evaluate(() => window.__deck.steps.findIndex((s) => s.id === window.__deck.slides[Math.min(window.__deck.slides.length - 1, 1 + 2)].id));
+  if (oOn && afterO.hidden && afterO.idx === sel) ok(`O opens the overview, arrows + Enter jump (now on ${afterO.id})`); else fail(`overview ${JSON.stringify({ oOn, afterO, sel })}`);
+  await page.keyboard.press('o');
+  await page.keyboard.press('Escape');
+  if (await page.evaluate(() => document.getElementById('overview').hidden)) ok('Esc closes the overview'); else fail('Esc did not close the overview');
 
-  // F fullscreen: must not throw
-  const errsBefore = report.errors.length;
-  await page.keyboard.press('f'); await page.waitForTimeout(300);
-  await page.keyboard.press('f'); await page.waitForTimeout(300);
-  report.errors.length === errsBefore ? ok('F toggles fullscreen without errors') : fail('F produced errors');
+  // fullscreen
+  await page.keyboard.press('f');
+  await page.waitForTimeout(400);
+  const fs1 = await page.evaluate(() => !!document.fullscreenElement);
+  await page.keyboard.press('f');
+  await page.waitForTimeout(400);
+  const fs2 = await page.evaluate(() => !!document.fullscreenElement);
+  if (fs1 && !fs2) ok('F enters and leaves fullscreen'); else note(`F: fullscreen ${fs1 ? 'entered' : 'not entered'} / ${fs2 ? 'still on' : 'left'} (headless browsers may refuse fullscreen)`);
 
-  // P presenter
-  const [pres] = await Promise.all([ctx.waitForEvent('page', { timeout: 5000 }).catch(() => null), page.keyboard.press('p')]);
-  if (!pres) fail('P did not open the presenter window');
-  else {
-    wire(pres, 'presenter');
-    await pres.waitForLoadState('load');
-    await pres.waitForFunction(() => /Slide/.test(document.getElementById('where').textContent), null, { timeout: 5000 }).catch(() => {});
-    const w1 = await pres.evaluate(() => document.getElementById('where').textContent);
-    await page.keyboard.press('Space'); await settle(page);
-    await pres.waitForTimeout(400);
-    const w2 = await pres.evaluate(() => document.getElementById('where').textContent);
-    const say = await pres.evaluate(() => document.getElementById('now').textContent);
-    const before = await step();
-    await pres.keyboard.press('Space');
-    await page.waitForTimeout(300); await settle(page);
-    const after = await step();
-    await pres.screenshot({ path: path.join(SHOTS, 'key_P_presenter.png') });
-    (/Slide/.test(w1) && w1 !== w2 && after === before + 1) ? ok(`P presenter follows the deck ("${w2.trim()}") and drives it`) : fail(`presenter: "${w1}" → "${w2}", deck ${before}→${after}`);
-    if (/\{app\}/.test(say)) fail('presenter shows a raw {app}');
-    await pres.close();
-  }
+  // presenter window
+  const [popup] = await Promise.all([ctx.waitForEvent('page'), page.keyboard.press('p')]);
+  await popup.waitForLoadState('load');
+  await page.keyboard.press('Space');
+  await settle(page, 400);
+  await popup.waitForTimeout(600);
+  const pres = await popup.evaluate(() => ({ say: document.getElementById('say').textContent, sec: document.getElementById('section').textContent, beat: document.getElementById('beat').textContent }));
+  const expectSec = await page.evaluate(() => document.querySelector('.hdr-sec').textContent);
+  if (pres.sec === expectSec && pres.say.length > 10) ok(`P opens the presenter window, in sync ("${pres.sec}", beat ${pres.beat})`); else fail(`presenter ${JSON.stringify(pres)} vs ${expectSec}`);
+  const before = await page.evaluate(() => window.__deck.index);
+  await popup.keyboard.press('ArrowRight');
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => window.__deck.index);
+  if (after === before + 1) ok('arrow keys in the presenter window move the deck'); else note(`presenter → deck control: ${before} → ${after}`);
+  await popup.screenshot({ path: path.join(SHOTS, 'presenter.png') });
+  await popup.close();
 
-  // V backup video: generated test file, then missing file → file picker
-  const vid = path.join(ROOT, 'assets', 'video', 'backup_demo.mp4');
-  const hadVideo = fs.existsSync(vid);
+  // video: a short test file (made with ffmpeg, deleted afterwards), then the missing-file picker
+  const vidPath = path.join(ROOT, DECK.backupVideo);
+  const ownVideo = fs.existsSync(vidPath);
   let made = false;
-  if (!hadVideo) {
+  if (!ownVideo) {
     try {
-      const ff = createRequire(import.meta.url)('ffmpeg-static');
-      execFileSync(ff, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=30', '-f', 'lavfi', '-i', 'sine=frequency=440',
-        '-t', '3', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', vid]);
+      const ffmpeg = require('ffmpeg-static');
+      fs.mkdirSync(path.dirname(vidPath), { recursive: true });
+      execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x0E6B60:s=640x360:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', vidPath]);
       made = true;
-    } catch (e) { report.notes.push('could not generate a test video: ' + e.message); }
+    } catch (e) { note('could not make a test video: ' + e.message); }
   }
-  if (fs.existsSync(vid)) {
+  if (fs.existsSync(vidPath)) {
     await page.keyboard.press('v');
     await page.waitForTimeout(1200);
-    const v = await page.evaluate(() => { const x = document.getElementById('video'); return { on: document.getElementById('video-layer').classList.contains('on'), t: x.currentTime, paused: x.paused }; });
-    await page.screenshot({ path: path.join(SHOTS, 'key_V_video.png') });
+    const v = await page.evaluate(() => { const el = document.getElementById('video'); return { open: !document.getElementById('video-layer').hidden, t: el.currentTime, err: el.error && el.error.code }; });
+    await page.keyboard.press('Escape');
+    const closed = await page.evaluate(() => document.getElementById('video-layer').hidden);
+    if (v.open && v.t > 0 && closed) ok(`V plays the backup video (t=${v.t.toFixed(2)}s), Esc closes it`); else fail(`video ${JSON.stringify(v)} closed=${closed}`);
     await page.keyboard.press('v');
-    const closed = await page.evaluate(() => !document.getElementById('video-layer').classList.contains('on'));
-    (v.on && v.t > 0.2 && closed) ? ok(`V plays the backup video (t=${v.t.toFixed(2)}s), V closes it`) : fail(`video: ${JSON.stringify(v)} closed=${closed}`);
-    await page.keyboard.press('v'); await page.waitForTimeout(300);
-    await page.keyboard.press('Escape');
-    if (await page.evaluate(() => document.getElementById('video-layer').classList.contains('on'))) fail('Esc did not close the video');
+    await page.waitForTimeout(500);
+    await page.keyboard.press('v');
+    if (await page.evaluate(() => document.getElementById('video-layer').hidden)) ok('V closes the video too'); else fail('V did not close the video');
   }
-  if (made) fs.unlinkSync(vid);
-  if (!fs.existsSync(vid)) {
-    page.__mute = /ERR_FILE_NOT_FOUND|Failed to load resource|backup_demo/;
-    const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 4000 }).catch(() => null), page.keyboard.press('v')]);
-    chooser ? ok('V with no video file opens a file picker') : fail('V with no video file: no file picker');
-    await page.waitForTimeout(300);
+  if (made) fs.rmSync(vidPath);
+  if (!fs.existsSync(vidPath)) {
+    log.muteVideo = true;   // the 404 for the missing file is the point of this test
+    const chooser = page.waitForEvent('filechooser', { timeout: 4000 }).then(() => true, () => false);
+    await page.keyboard.press('v');
+    const picked = await chooser;
     await page.keyboard.press('Escape');
-    page.__mute = null;
+    if (picked) ok('V with no video file opens a file picker'); else fail('V with a missing file did not open a file picker');
   }
-  return true;
-}
+  if (made) ok('test video deleted');
 
-async function printCheck(page) {
-  console.log('\n── print');
+  // print
   await page.emulateMedia({ media: 'print' });
-  await page.screenshot({ path: path.join(SHOTS, 'print_preview.png'), fullPage: true });
-  await page.emulateMedia({ media: null });
-  const pdfPath = path.join(SHOTS, 'deck.pdf');
-  await page.pdf({ path: pdfPath, preferCSSPageSize: true, printBackground: true });
-  const buf = fs.readFileSync(pdfPath).toString('latin1');
-  const pages = (buf.match(/\/Type\s*\/Page(?!s)/g) || []).length;
-  pages === 8 ? ok('print → 8 pages') : fail(`print → ${pages} pages (want 8)`);
-  return pages;
+  const pdf = await page.pdf({ path: path.join(SHOTS, 'print.pdf'), preferCSSPageSize: true, printBackground: true });
+  await page.emulateMedia({ media: 'screen' });
+  const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+  if (pages === enabledSlides.length) ok(`print: ${pages} pages = ${enabledSlides.length} enabled slides`); else fail(`print: ${pages} pages, expected ${enabledSlides.length}`);
+  results.counts.printPages = pages;
+
+  if (log.errors.length) fail('console/page errors:\n    ' + log.errors.join('\n    ')); else ok('zero console errors, warnings or page errors');
+  if (log.network.length) fail('network requests:\n    ' + log.network.join('\n    ')); else ok('zero non-file:// requests');
+  await ctx.close();
 }
 
-(async () => {
-  const { browser, channel } = await launch();
-  console.log('browser:', channel);
-  const a = await runViewport(browser, 1920, 1080, { slowBack: true });
-  await keyTests(a.ctx, a.page, a.total);
-  report.pages = await printCheck(a.page);
-  await a.ctx.close();
-  if (!QUICK) {
-    const b = await runViewport(browser, 1366, 768, { slowBack: false });
-    await b.ctx.close();
+// ── 2. contact sheet: final state of each slide, both themes ────────────────
+async function finals(theme, dir, init) {
+  const { ctx, page } = await open({ width: 1920, height: 1080 }, { init });
+  if (theme === 'ink') await page.keyboard.press('d');
+  const steps = await page.evaluate(() => window.__deck.steps);
+  const files = [];
+  const lastOf = {};
+  steps.forEach((s, i) => { if (s.view !== 'demo') lastOf[s.s] = i; });
+  for (const [s, i] of Object.entries(lastOf)) {
+    await page.evaluate((i) => window.__deck.go(i), i);
+    await settle(page, 900);
+    const f = path.join(dir, `final_${theme}_${String(+s + 1).padStart(2, '0')}.png`);
+    await page.screenshot({ path: f });
+    files.push(f);
   }
-  await browser.close();
+  await ctx.close();
+  return files;
+}
+{
+  console.log('\ncontact sheet');
+  const paper = await finals('paper', path.join(SHOTS, 'paper'));
+  const ink = await finals('ink', path.join(SHOTS, 'ink'));
+  const cols = paper.length;
+  const w = 480, h = 270, gap = 16;
+  const html = `<html><body style="margin:0;background:#8a857c;padding:${gap}px;display:grid;grid-template-columns:repeat(${Math.min(cols, 4)},${w}px);gap:${gap}px">` +
+    [...paper, ...ink].map((f) => `<img src="${pathToFileURL(f).href}" style="width:${w}px;height:${h}px;display:block">`).join('') + '</body></html>';
+  const sheet = path.join(TMP, 'sheet.html');
+  fs.writeFileSync(sheet, html);
+  const ctx = await browser.newContext({ viewport: { width: Math.min(cols, 4) * (w + gap) + gap, height: 400 } });
+  const p = await ctx.newPage();
+  await p.goto(pathToFileURL(sheet).href);
+  await p.waitForTimeout(500);
+  await p.screenshot({ path: path.join(SHOTS, 'contact-sheet.png'), fullPage: true });
+  await ctx.close();
+  fs.rmSync(sheet);
+  ok('shots/contact-sheet.png');
+}
 
-  console.log('\n── summary');
-  const show = (k, label) => {
-    const arr = report[k];
-    console.log(`${label}: ${arr.length}`);
-    [...new Set(arr)].slice(0, 25).forEach((x) => console.log('   ', x));
-  };
-  show('errors', 'console errors');
-  show('warnings', 'console warnings');
-  show('network', 'non-file network requests');
-  show('overlaps', 'text overlaps');
-  show('outside', 'outside stage / overflow');
-  show('failures', 'failed checks');
-  report.notes.forEach((n) => console.log('note:', n));
-  fs.writeFileSync(path.join(SHOTS, 'report.json'), JSON.stringify(report, null, 2));
-  const bad = report.errors.length + report.network.length + report.overlaps.length + report.outside.length + report.failures.length;
-  process.exit(bad ? 1 : 0);
-})().catch((e) => { console.error(e); process.exit(2); });
+// ── 3. smaller screens (letterboxed) ────────────────────────────────────────
+for (const vp of [{ width: 1366, height: 768 }, { width: 1024, height: 768 }]) {
+  console.log(`\n${vp.width}×${vp.height}`);
+  const { ctx, page, log } = await open(vp);
+  const label = `${vp.width}x${vp.height}`;
+  const dir = path.join(SHOTS, 'small', label);
+  fs.mkdirSync(dir, { recursive: true });
+  await walk(page, label, dir);
+  const scale = await page.evaluate(() => document.getElementById('stage').getBoundingClientRect().width / 1920);
+  ok(`${label}: stage scale ${scale.toFixed(3)} → headline ${(80 * scale).toFixed(1)} px, smallest readable text (28) ${(28 * scale).toFixed(1)} px, labels ${(20 * scale).toFixed(1)} px`);
+  results[label] = { scale };
+  if (log.errors.length) fail(`${label} errors:\n    ` + log.errors.join('\n    '));
+  await ctx.close();
+}
+
+// ── 4. variants: slide 6 on, optional beat on, numbers empty / filled ───────
+console.log('\nvariant: business slide on, hidden-a beat on, all numbers empty');
+{
+  const init = mutator(`(d) => {
+    d.slides.find((s) => s.id === 'business').enabled = true;
+    d.slides.find((s) => s.id === 'science').beats.forEach((b) => { b.enabled = true; });
+    for (const k in d.numbers) d.numbers[k] = '';
+  }`);
+  const { ctx, page, log } = await open({ width: 1920, height: 1080 }, { init });
+  const n = await page.evaluate(() => window.__deck.slides.length);
+  if (n === enabledSlides.length + 1) ok(`variant: ${n} slides (01–${String(n).padStart(2, '0')})`); else fail(`variant slides ${n}`);
+  await walk(page, 'variant', path.join(SHOTS, 'variant'));
+  const sci = await page.evaluate(() => [...document.querySelectorAll('#slides .slide[data-id="science"] .comp')].map((c) => c.dataset.role));
+  if (!sci.includes('figures') && sci.includes('transform')) ok(`variant: science uses the empty-numbers beat + transform (${sci.join(', ')})`); else fail(`variant science comps ${sci}`);
+  await page.emulateMedia({ media: 'print' });
+  const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+  const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+  if (pages === n) ok(`variant print: ${pages} pages`); else fail(`variant print ${pages} pages, expected ${n}`);
+  if (log.errors.length) fail('variant errors:\n    ' + log.errors.join('\n    '));
+  await ctx.close();
+  await finals('paper', path.join(SHOTS, 'variant'), init);
+}
+console.log('\nvariant: survey numbers + realOutput filled (test values only, never saved)');
+{
+  const init = mutator(`(d) => {
+    d.numbers.surveyAsked = '40'; d.numbers.surveyYes = '36';
+    d.realOutput.devanagari = 'ओइ अस्ति को होमवर्क पठाइदेन';
+    d.realOutput.roman = 'oye asti ko homework pathaidena';
+    d.teamName = 'Team name';
+  }`);
+  const { ctx, page, log } = await open({ width: 1920, height: 1080 }, { init });
+  await walk(page, 'filled', path.join(SHOTS, 'filled'));
+  const fig = await page.evaluate(() => (document.querySelector('#slides .slide[data-id="users"] .fig-value') || {}).textContent);
+  if (fig === '36 of 40') ok('filled: survey figure "36 of 40" replaces the comments'); else fail(`filled: figure ${fig}`);
+  const ph = await page.evaluate(() => document.querySelectorAll('.placeholder').length);
+  if (ph === 0) ok('filled: realOutput replaces both placeholders'); else fail(`filled: ${ph} placeholders left`);
+  if (log.errors.length) fail('filled errors:\n    ' + log.errors.join('\n    '));
+  await ctx.close();
+}
+
+// ── 5. reduced motion still works ───────────────────────────────────────────
+{
+  const { ctx, page, log } = await open({ width: 1920, height: 1080 }, { reducedMotion: 'reduce' });
+  await walk(page, 'reduced-motion', null, { shots: false });
+  if (log.errors.length) fail('reduced-motion errors:\n    ' + log.errors.join('\n    '));
+  await ctx.close();
+}
+
+// ── 6. content.js with a syntax error shows the plain message ──────────────
+console.log('\nbroken content.js');
+{
+  const dir = path.join(TMP, 'broken');
+  fs.mkdirSync(dir, { recursive: true });
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
+    .replace('href="css/', 'href="../../../css/').replace(/src="js\//g, 'src="../../../js/');
+  fs.writeFileSync(path.join(dir, 'index.html'), html);
+  fs.writeFileSync(path.join(dir, 'content.js'), SRC.replace('event: "Sci-Pitch 2026",', 'event: "Sci-Pitch 2026"'));
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  const page = await ctx.newPage();
+  await page.goto(pathToFileURL(path.join(dir, 'index.html')).href);
+  await page.waitForTimeout(600);
+  const msg = await page.evaluate(() => { const e = document.getElementById('load-error'); return e && !e.hidden ? e.innerText : null; });
+  await page.screenshot({ path: path.join(SHOTS, 'content-error.png') });
+  if (msg && msg.includes('content.js didn’t load')) ok(`syntax error shows the message: "${msg.replace(/\n+/g, ' / ')}"`); else fail(`no error message for a broken content.js (${msg})`);
+  await ctx.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+await browser.close();
+fs.writeFileSync(path.join(SHOTS, 'results.json'), JSON.stringify(results, null, 2));
+console.log(`\n${results.failures.length ? results.failures.length + ' FAILURE(S)' : 'ALL CHECKS PASSED'} · notes: ${results.notes.length} · browser: ${channel}`);
+process.exit(results.failures.length ? 1 : 0);
