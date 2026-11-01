@@ -1,0 +1,22 @@
+=== render_v2 2026-11-01 21:20:21 preview=True
+still keycap             1.0s  554x570  png only
+still laptop             0.7s  814x600  png only
+still phone_keyboard     0.5s  496x420  png only
+render device: OPTIX (NVIDIA GeForce RTX 5070) · total 3.0s
+=== render_v2 2026-11-01 21:21:08 preview=True
+still keycap             0.6s  554x570  png only
+still laptop             0.6s  814x600  png only
+still phone_keyboard     0.4s  496x420  png only
+render device: OPTIX (NVIDIA GeForce RTX 5070) · total 2.0s
+=== render_v2 2026-11-01 21:21:44 preview=False
+Pillow missing inside Blender: run tools/encode_v2.py to make the WebP files
+still keycap             3.7s  1108x1140  png only
+Pillow missing inside Blender: run tools/encode_v2.py to make the WebP files
+still laptop             6.5s  1628x1200  png only
+Pillow missing inside Blender: run tools/encode_v2.py to make the WebP files
+still phone_keyboard     2.3s  992x840  png only
+render device: OPTIX (NVIDIA GeForce RTX 5070) · total 12.9s
+=== render_v2 2026-11-01 22:44:46 preview=False
+Pillow missing inside Blender: run tools/encode_v2.py to make the WebP files
+still phone_voicenotes    4.6s  1204x1320  png only
+render device: OPTIX (NVIDIA GeForce RTX 5070) · total 5.1s
